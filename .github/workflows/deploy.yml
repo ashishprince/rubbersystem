@@ -39,25 +39,27 @@ jobs:
             # Pull the latest web image
             docker pull ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
             
-            # Stop and remove the old containers if they exist
-            docker stop rubberplantation-web rubber-db || true
-            docker rm rubberplantation-web rubber-db || true
+            # Stop and remove the old web container if it exists
+            docker stop rubberplantation-web || true
+            docker rm rubberplantation-web || true
             
-            # Start the PostGIS database container
+            # Start the PostGIS database container if not already running
             docker run -d \
               --name rubber-db \
-              --network rubber-net \
               --restart unless-stopped \
               -e POSTGRES_DB=rubber_db \
               -e POSTGRES_USER=postgres \
               -e POSTGRES_PASSWORD='Ashish2005#' \
               -v pgdata:/var/lib/postgresql/data \
-              postgis/postgis:15-3.3
+              postgis/postgis:15-3.3 || true
 
-            # Wait a few seconds for database to start up
+            # Connect rubber-db to the network (works whether new or existing)
+            docker network connect rubber-net rubber-db || true
+
+            # Wait for database to be ready
             sleep 10
 
-            # Run the new web container, connecting it to the database
+            # Run the new web container
             docker run -d \
               --name rubberplantation-web \
               --network rubber-net \
@@ -66,6 +68,5 @@ jobs:
               --env DB_HOST=rubber-db \
               ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
 
-            # Run database migrations and load data if available
+            # Run database migrations
             docker exec rubberplantation-web python manage.py migrate || true
-            docker exec rubberplantation-web python manage.py loaddata datadump.json || true
