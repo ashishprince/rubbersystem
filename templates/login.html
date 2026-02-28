@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Login - Rubber Plantation Management{% endblock %}
+
+{% block extra_js %}
+<style>
+    /* Force full viewport and overlay existing base.html container constraints */
+    .login-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        /* Sit on top of everything */
+        background: linear-gradient(rgba(15, 15, 15, 0.4), rgba(15, 15, 15, 0.65)),
+        url("{% static 'images/login-bg-tree.jpg' %}") no-repeat center center fixed;
+        background-size: cover;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Solid Light Card - NO Glassmorphism */
+    .solid-card {
+        background: rgba(255, 255, 255, 0.95);
+        /* Solid white */
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        max-width: 400px;
+        padding: 2.5rem 2rem;
+        color: #333;
+        /* Make sure no blur exists */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    /* Animations */
+    .animate-entrance {
+        animation: fadeInUp 0.5s ease forwards;
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    @keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Typography */
+    .solid-card h2 {
+        color: #1B5E20;
+        /* Dark green for branding */
+        font-weight: 800;
+        margin-bottom: 0.25rem;
+    }
+
+    .solid-card .subtitle {
+        color: #6c757d;
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+
+    /* Forms */
+    .solid-card .form-label {
+        color: #495057;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .solid-card .input-group-text {
+        background: #f8f9fa;
+        /* slightly off white */
+        border: 1px solid #ced4da;
+        border-right: none;
+        color: #1B5E20;
+    }
+
+    .solid-card .form-control {
+        background: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-left: none;
+        color: #333;
+        padding: 0.75rem;
+    }
+
+    .solid-card .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(27, 94, 32, 0.25);
+        background: #ffffff;
+    }
+
+    /* Button */
+    .btn-login {
+        background-color: #1B5E20;
+        border: none;
+        color: white;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 0.8rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn-login:hover {
+        background-color: #2E7D32;
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="solid-card animate-entrance">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold">RubberSystem</h2>
+            <p class="subtitle mb-0">Management System</p>
+        </div>
+
+        <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+
+            {% if form.errors %}
+            <div class="alert alert-danger alert-dismissible fade show p-3 mb-4 border-0" role="alert"
+                style="background-color: #C62828; color: white; border-radius: 8px;">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                    <strong class="me-1">Error!</strong> Please check your credentials.
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"
+                    aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="id_username" class="form-label">Username</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" name="username" class="form-control" id="id_username"
+                        placeholder="Enter your username" required>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="id_password" class="form-label">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" name="password" class="form-control" id="id_password"
+                        placeholder="Enter your password" required>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 mt-4">
+                <button type="submit" class="btn btn-login btn-lg shadow-sm">
+                    Sign In
+                </button>
+            </div>
+
+            <div class="text-center mt-4">
+                <small style="color: #6c757d;">Forgot password? Contact Administrator.</small>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

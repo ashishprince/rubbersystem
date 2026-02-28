@@ -1,0 +1,645 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Dashboard - Rubber Plantation{% endblock %}
+
+{% block page_title_nav %}
+<h4 class="mb-0 fw-bold text-dark d-none d-md-block">Tapper Dashboard</h4>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4 fade-in">
+    <div class="col-12">
+        <h4 class="text-primary-green fw-bold mb-1">Welcome, {{ user.get_full_name|default:user.username }}</h4>
+        <p class="text-muted mb-0">Your daily tasks and productivity</p>
+    </div>
+</div>
+
+<!-- Weather Alert Banner -->
+{% if weather_data %}
+<div class="row mb-4 fade-in">
+    <div class="col-12">
+        {% if weather_data.alert_level == 'normal' %}
+        <div class="alert alert-success d-flex align-items-center shadow-sm border-0" role="alert"
+            style="border-radius: 12px;">
+            <i class="bi bi-check-circle-fill fs-3 me-3"></i>
+            <div>
+                <strong>Normal Operations ({{ weather_data.temperature }}°C, {{ weather_data.condition }})</strong><br>
+                {{ weather_data.alert_message }}
+            </div>
+        </div>
+        {% elif weather_data.alert_level == 'caution' %}
+        <div class="alert alert-warning d-flex align-items-center shadow-sm border-0" role="alert"
+            style="border-radius: 12px;">
+            <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+            <div>
+                <strong>Caution ({{ weather_data.temperature }}°C, {{ weather_data.condition }})</strong><br>
+                {{ weather_data.alert_message }}
+            </div>
+        </div>
+        {% elif weather_data.alert_level == 'danger' %}
+        <div class="alert alert-danger d-flex align-items-center shadow-sm border-0 text-white" role="alert"
+            style="background-color: #d32f2f; border-radius: 12px;">
+            <i class="bi bi-shield-exclamation fs-3 me-3"></i>
+            <div>
+                <strong>DANGER ({{ weather_data.temperature }}°C, {{ weather_data.condition }})</strong><br>
+                {{ weather_data.alert_message }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if not has_profile %}
+<div class="row justify-content-center fade-in">
+    <div class="col-lg-6">
+        <div class="card border-0 text-center p-5">
+            <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 4rem;"></i>
+            <h4 class="mt-3 fw-bold text-dark">Profile Not Found</h4>
+            <p class="text-muted">Your tapper profile has not been set up. Please contact an administrator.</p>
+        </div>
+    </div>
+</div>
+{% else %}
+
+<!-- KPI Cards -->
+<div class="row g-4 mb-5 fade-in">
+    <!-- Assigned Block -->
+    <div class="col-md-6 col-lg-4">
+        <div
+            class="card h-100 {% if assigned_block %}border-start border-4 border-success{% else %}border-start border-4 border-danger{% endif %}">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Assigned Block</div>
+                    <div
+                        class="avatar-circle {% if assigned_block %}bg-light-green{% else %}bg-danger bg-opacity-10 text-danger{% endif %}">
+                        <i class="bi bi-geo-alt-fill"></i>
+                    </div>
+                </div>
+                {% if assigned_block %}
+                <div class="kpi-value text-dark">{{ assigned_block.name }}</div>
+                {% else %}
+                <div class="kpi-value text-danger fs-4">Not Assigned</div>
+                <div class="small text-muted mt-1">Contact your Manager</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Entry -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Today's Latex</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-droplet-fill"></i></div>
+                </div>
+                <div class="kpi-value text-primary-green">{{ today_entry }} <span
+                        class="fs-5 text-muted fw-normal">L</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Total -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Monthly Total</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-calendar-check-fill"></i></div>
+                </div>
+                <div class="kpi-value text-dark">{{ monthly_total }} <span class="fs-5 text-muted fw-normal">L</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manager Info -->
+{% if my_manager %}
+<div class="row g-4 mb-4 fade-in">
+    <div class="col-12">
+        <div class="card border-0 border-start border-4 border-info">
+            <div class="card-body d-flex align-items-center gap-4 py-3 px-4">
+                <div class="avatar-circle bg-info bg-opacity-10 text-info"
+                    style="width: 50px; height: 50px; font-size: 1.5rem;">
+                    <i class="bi bi-person-badge-fill"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase mb-1 fw-medium tracking-wide">Your Manager</div>
+                    <h6 class="fw-bold text-dark mb-0 fs-5">{{ my_manager.get_full_name|default:my_manager.username }}
+                    </h6>
+                    {% if my_manager.email %}
+                    <div class="text-muted small mt-1"><i class="bi bi-envelope me-1"></i> {{ my_manager.email }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Floating Report Incident Button -->
+<button type="button" class="btn btn-danger btn-lg position-fixed bottom-0 end-0 m-4 shadow-lg text-white"
+    style="border-radius: 50%; width: 65px; height: 65px; z-index: 1050; display: flex; align-items: center; justify-content: center;"
+    data-bs-toggle="modal" data-bs-target="#reportIncidentModal" title="Report Emergency/Incident">
+    <i class="bi bi-shield-exclamation fs-3"></i>
+</button>
+
+<!-- Report Incident Modal -->
+<div class="modal fade" id="reportIncidentModal" tabindex="-1" aria-labelledby="reportIncidentModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+            <div class="modal-header text-white" style="background-color: #d32f2f; border-radius: 12px 12px 0 0;">
+                <h5 class="modal-title fw-bold" id="reportIncidentModalLabel"><i
+                        class="bi bi-shield-exclamation me-2"></i>Report Incident</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="incidentAlertContainer"></div>
+                <form id="incidentForm">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Incident Type</label>
+                        <select class="form-select" id="incidentType" required>
+                            <option value="">Select type...</option>
+                            <option value="PEST">Pest Attack</option>
+                            <option value="DAMAGE">Tree Damage</option>
+                            <option value="FLOOD">Flooding</option>
+                            <option value="EQUIP">Equipment Issue</option>
+                            <option value="INJURY">Injury</option>
+                            <option value="THEFT">Theft</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Severity</label>
+                        <select class="form-select" id="incidentSeverity" required>
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM" selected>Medium</option>
+                            <option value="HIGH">High</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Description</label>
+                        <textarea class="form-control" id="incidentDescription" rows="3" required
+                            placeholder="Describe what happened..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Photo Evidence (Optional)</label>
+                        <input class="form-control" type="file" id="incidentPhoto" accept="image/*">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0 bg-light rounded-bottom">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger px-4" id="submitIncidentBtn"
+                    style="background-color: #d32f2f;">
+                    <i class="bi bi-geo-alt-fill me-2"></i>Submit with GPS
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Map & Attendance Row -->
+<div class="row g-4 mb-5 fade-in">
+    <!-- Map Section -->
+    {% if has_assigned_block %}
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-map-fill me-2"></i>{{ assigned_block.name }} — Boundary Area</span>
+                <span class="badge bg-light text-muted border px-3 py-2 fw-medium">
+                    {% if assigned_block.area_hectares %}{{ assigned_block.area_hectares|floatformat:2 }} Ha
+                    {% else %}{{ assigned_block.area }} Acres{% endif %}
+                </span>
+            </div>
+            <div class="card-body p-0 position-relative">
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                <div id="tapperBlockMap" style="height: 400px; width: 100%; z-index: 1;"></div>
+                {% if not block_boundary_json %}
+                <div
+                    class="position-absolute top-50 start-50 translate-middle text-center w-100 p-4 bg-white bg-opacity-75 z-2">
+                    <i class="bi bi-info-circle-fill text-warning fs-1 mb-2"></i>
+                    <h5 class="fw-bold text-dark">Boundary Not Mapped</h5>
+                    <p class="text-muted mb-0">Contact your manager to define the geographical boundary for this block.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Attendance Section -->
+    <div class="{% if has_assigned_block %}col-lg-5{% else %}col-12{% endif %}">
+        <div class="card h-100 text-center d-flex flex-column justify-content-center p-4">
+            <div id="attendanceAlertContainer" class="mb-3"></div>
+
+            <i class="bi bi-geo-alt-fill text-primary-green mb-3" style="font-size: 3rem; opacity: 0.8;"></i>
+            <h4 class="fw-bold text-dark mb-2">Daily Attendance</h4>
+            <p class="text-muted mb-4 px-3">You must be physically located inside your assigned block to log your
+                attendance today.</p>
+
+            <button id="markAttendanceBtn"
+                class="btn btn-primary-green btn-lg shadow-sm py-3 fw-bold rounded-pill w-100 mx-auto"
+                style="max-width: 300px;">
+                <i class="bi bi-check-circle-fill me-2"></i> Mark Attendance
+            </button>
+            <div class="small text-muted mt-3">GPS accuracy must be within 30 meters</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 fade-in">
+    <!-- Quick Entry -->
+    {% if assigned_block %}
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-plus-fill me-2"></i> Log Latex
+            </div>
+            <div class="card-body p-4">
+                <form method="post" action="{% url 'latex_collection' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Assigned Block</label>
+                        <div class="form-control bg-light fw-medium border-0 py-2">
+                            <i class="bi bi-geo-alt-fill text-primary-green me-2"></i>{{ assigned_block.name }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="collectionDate"
+                            class="form-label text-muted small fw-bold text-uppercase">Date</label>
+                        <input type="date" class="form-control py-2" id="collectionDate" name="date" required
+                            value="{% now 'Y-m-d' %}">
+                    </div>
+                    <div class="mb-4">
+                        <label for="latexQuantity"
+                            class="form-label text-muted small fw-bold text-uppercase">Quantity</label>
+                        <div class="input-group">
+                            <input type="number" step="0.1" class="form-control py-2" id="latexQuantity" name="quantity"
+                                placeholder="0.0" required min="0.1">
+                            <span class="input-group-text bg-accent-light text-primary-green fw-bold px-3">Liters</span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary-green w-100 py-2 fw-bold">
+                        Submit Entry
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent History -->
+    <div class="{% if assigned_block %}col-lg-8{% else %}col-12{% endif %}">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-2"></i> My Recent Collections
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Block</th>
+                                <th class="text-end">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in recent_history %}
+                            <tr>
+                                <td class="text-muted">{{ record.date }}</td>
+                                <td class="fw-medium text-dark">
+                                    <i class="bi bi-tag-fill text-muted me-1 small"></i>{{ record.block.name }}
+                                </td>
+                                <td class="text-end fw-bold text-primary-green">{{ record.quantity }} L</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-3 d-block mb-2 opacity-50"></i>
+                                    No collections recorded yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Monthly Wages -->
+<div class="row g-4 mt-2 mb-4 fade-in">
+    <div class="col-12">
+        <div class="card h-100 shadow-sm border-0">
+            <div
+                class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0"><i class="bi bi-wallet2 text-primary-green me-2"></i>My Monthly Wages</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4">Month</th>
+                                <th>Attendance</th>
+                                <th>Total Latex</th>
+                                <th>Expected Yield</th>
+                                <th>Performance</th>
+                                <th class="text-end pe-4">Total Wage Received</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in wage_records %}
+                            <tr>
+                                <td class="ps-4 fw-bold text-dark">{{ record.month|date:"F Y" }}</td>
+                                <td>{{ record.attendance_days }} days</td>
+                                <td class="fw-medium text-dark">{{ record.total_latex_kg|floatformat:1 }} L</td>
+                                <td class="text-muted">{{ record.expected_yield|floatformat:1 }} L</td>
+                                <td>
+                                    {% if record.performance_percentage >= 110 %}
+                                    <span class="badge" style="background-color: #1b5e20;">Excellent</span>
+                                    {% elif record.performance_percentage >= 95 %}
+                                    <span class="badge bg-success">Good</span>
+                                    {% elif record.performance_percentage >= 80 %}
+                                    <span class="badge bg-warning text-dark">Moderate</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Needs Review</span>
+                                    {% endif %}
+                                    <span class="ms-1 small text-muted">({{ record.performance_percentage|floatformat:1
+                                        }}%)</span>
+                                </td>
+                                <td class="text-end pe-4 fs-5 fw-bold text-primary-green">₹{{
+                                    record.total_wage|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">
+                                    <i class="bi bi-cash-stack fs-3 d-block mb-2 opacity-50"></i>
+                                    No wage records available yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
+<!-- Scripts for Map and Attendance -->
+{% if has_assigned_block %}
+{% if block_boundary_json %}
+<script id="blockBoundaryData" type="application/json">{{ block_boundary_json|safe }}</script>
+{% endif %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var mapEl = document.getElementById('tapperBlockMap');
+        if (!mapEl) return;
+
+        var boundaryData = null;
+        var jsonEl = document.getElementById('blockBoundaryData');
+        if (jsonEl) {
+            try { boundaryData = JSON.parse(jsonEl.textContent); } catch (e) { console.error('Bad boundary JSON', e); }
+        }
+
+        var map = L.map('tapperBlockMap', {
+            center: [9.93, 76.26],
+            zoom: 13,
+            zoomControl: true,
+            scrollWheelZoom: true
+        });
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
+        }).addTo(map);
+
+        if (boundaryData) {
+            var polygon = L.geoJSON(boundaryData, {
+                style: { color: '#2E7D32', weight: 4, fillOpacity: 0.25, fillColor: '#A5D6A7' }
+            }).addTo(map);
+            map.fitBounds(polygon.getBounds(), { padding: [30, 30] });
+            var center = polygon.getBounds().getCenter();
+
+            L.marker(center, {
+                icon: L.divIcon({
+                    className: 'block-label',
+                    html: '<div class="bg-white px-3 py-1 rounded shadow-sm fw-bold text-primary-green" style="font-size: 13px; border: 1px solid rgba(0,0,0,0.1); white-space:nowrap;">{{ assigned_block.name }}</div>',
+                    iconSize: null
+                })
+            }).addTo(map);
+        } else {
+            L.marker([9.93, 76.26]).addTo(map);
+        }
+
+        setTimeout(function () { map.invalidateSize(); }, 300);
+    });
+
+    // Attendance Logic
+    document.getElementById('markAttendanceBtn')?.addEventListener('click', function () {
+        const btn = this;
+        const alertContainer = document.getElementById('attendanceAlertContainer');
+
+        if (!navigator.geolocation) {
+            showAlert('danger', 'Geolocation is not supported by your browser.');
+            return;
+        }
+
+        function showAlert(type, message) {
+            alertContainer.innerHTML = `<div class="alert alert-${type} fade show text-start shadow-sm"><i class="bi bi-info-circle-fill me-2"></i> ${message}</div>`;
+        }
+
+        // UI Feedback
+        btn.disabled = true;
+        btn.classList.add('opacity-75');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Locating GPS...';
+        alertContainer.innerHTML = '';
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Validating Zone...';
+
+                fetch('{% url "mark_attendance" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        latitude: lat,
+                        longitude: lng,
+                        accuracy: accuracy
+                    })
+                })
+                    .then(response => {
+                        const status = response.status;
+                        return response.json().then(data => ({ status: status, data: data }));
+                    })
+                    .then(result => {
+                        const data = result.data;
+                        const status = result.status;
+
+                        btn.classList.remove('opacity-75');
+
+                        if (status === 200) {
+                            showAlert('success', data.message);
+                            btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Attendance Logged';
+                            btn.classList.replace('btn-primary-green', 'btn-secondary');
+                        } else if (status === 403) {
+                            showAlert('danger', `<strong>Access Denied:</strong> ${data.message} Get closer to your block boundary.`);
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        } else if (status === 409) {
+                            showAlert('info', data.message);
+                            btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Already Logged';
+                            btn.classList.replace('btn-primary-green', 'btn-secondary');
+                        } else {
+                            showAlert('warning', `<strong>Error:</strong> ${data.message || 'Validation failed.'}`);
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('danger', 'Network connection error. Please try again.');
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-75');
+                    });
+            },
+            function (error) {
+                let msg = 'Unable to pinpoint your precise location.';
+                if (error.code === error.PERMISSION_DENIED) {
+                    msg = 'Location access disabled. Please grant GPS permissions in your browser.';
+                }
+                showAlert('warning', msg);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    });
+
+    // Incident Reporting Logic
+    document.getElementById('submitIncidentBtn')?.addEventListener('click', function () {
+        const btn = this;
+        const form = document.getElementById('incidentForm');
+        const alertContainer = document.getElementById('incidentAlertContainer');
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            incidentShowAlert('danger', 'Geolocation is not supported by your browser.');
+            return;
+        }
+
+        function incidentShowAlert(type, message) {
+            alertContainer.innerHTML = `<div class="alert alert-${type} fade show shadow-sm small"><i class="bi bi-info-circle-fill me-2"></i> ${message}</div>`;
+        }
+
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Locating GPS...';
+        alertContainer.innerHTML = '';
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+
+                const formData = new FormData();
+                formData.append('lat', lat);
+                formData.append('lng', lng);
+                formData.append('incident_type', document.getElementById('incidentType').value);
+                formData.append('severity', document.getElementById('incidentSeverity').value);
+                formData.append('description', document.getElementById('incidentDescription').value);
+
+                const photoInput = document.getElementById('incidentPhoto');
+                if (photoInput.files[0]) {
+                    formData.append('photo', photoInput.files[0]);
+                }
+
+                fetch('{% url "api_report_incident" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                    .then(response => response.json().then(data => ({ status: response.status, data: data })))
+                    .then(result => {
+                        const data = result.data;
+                        const status = result.status;
+
+                        if (status === 200) {
+                            incidentShowAlert('success', 'Incident reported successfully!');
+                            btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Reported';
+                            btn.classList.replace('btn-danger', 'btn-success');
+                            btn.style.backgroundColor = '';
+                            setTimeout(() => {
+                                bootstrap.Modal.getInstance(document.getElementById('reportIncidentModal')).hide();
+                                form.reset();
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                                btn.classList.replace('btn-success', 'btn-danger');
+                                btn.style.backgroundColor = '#d32f2f';
+                                alertContainer.innerHTML = '';
+                            }, 2000);
+                        } else if (status === 403) {
+                            incidentShowAlert('danger', `<strong>GPS Rejected:</strong> ${data.error}`);
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        } else {
+                            incidentShowAlert('warning', `<strong>Error:</strong> ${data.error || 'Submission failed.'}`);
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        incidentShowAlert('danger', 'Network error. Try again.');
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    });
+            },
+            function (error) {
+                incidentShowAlert('warning', 'Unable to acquire GPS. Please grant location permission.');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    });
+</script>
+{% endif %}
+{% endblock %}

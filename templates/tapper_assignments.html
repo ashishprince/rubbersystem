@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tapper Assignments - Plantation{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="text-primary-green fw-bold">Tapper Assignments</h2>
+        <p class="text-muted mb-0">Assign tappers to blocks and manage their work areas</p>
+    </div>
+    {% if unassigned_tappers %}
+    <button type="button" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal"
+        data-bs-target="#assignModal">
+        <i class="bi bi-plus-lg"></i> New Assignment
+    </button>
+    {% endif %}
+</div>
+
+<!-- Unassigned Alert -->
+{% if unassigned_tappers %}
+<div class="alert alert-warning d-flex align-items-center shadow-sm mb-4 fade-in" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+    <div>
+        <strong>{{ unassigned_tappers|length }} tapper{{ unassigned_tappers|length|pluralize }} waiting for
+            assignment:</strong>
+        {% for t in unassigned_tappers %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Active Assignments Table -->
+<div class="card shadow-sm border-0 fade-in">
+    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 text-primary-green fw-bold">
+            <i class="bi bi-diagram-3 me-2"></i> Active Assignments
+        </h5>
+        <span class="badge bg-primary-green rounded-pill">{{ active_assignments|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th scope="col" class="ps-4">#</th>
+                        <th scope="col">Tapper</th>
+                        <th scope="col">Assigned Block</th>
+                        <th scope="col">Assigned By</th>
+                        <th scope="col">Since</th>
+                        <th scope="col" class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in active_assignments %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-circle bg-light-green text-primary-green me-2"
+                                    style="width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">
+                                    {{ a.tapper.user.first_name|slice:":1" }}
+                                </div>
+                                <span class="fw-medium">{{ a.tapper }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill">
+                                <i class="bi bi-geo-alt me-1"></i>{{ a.block.name }}
+                            </span>
+                        </td>
+                        <td class="text-secondary">{{ a.assigned_by.get_full_name|default:a.assigned_by.username }}</td>
+                        <td class="text-secondary">{{ a.assigned_date }}</td>
+                        <td class="text-end pe-4">
+                            <form method="post" action="{% url 'assignment_remove' a.id %}" class="d-inline"
+                                onsubmit="return confirm('Remove this assignment?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove Assignment">
+                                    <i class="bi bi-x-circle me-1"></i> Remove
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
+                            <p>No active assignments. Create one to get started.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Tapper Modal -->
+{% if unassigned_tappers %}
+<div class="modal fade" id="assignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold text-primary-green">Assign Tapper to Block</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'assignment_create' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold">Select Tapper</label>
+                        <select class="form-select py-2" name="tapper" required>
+                            <option value="" selected disabled>Choose unassigned tapper...</option>
+                            {% for t in unassigned_tappers %}
+                            <option value="{{ t.id }}">{{ t }} (₹{{ t.wage }}/day)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold">Assign to Block</label>
+                        <select class="form-select py-2" name="block" required>
+                            <option value="" selected disabled>Choose block...</option>
+                            {% for b in blocks %}
+                            <option value="{{ b.id }}">{{ b.name }} ({{ b.area }} Ac)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 d-flex justify-content-between px-4 pb-4">
+                    <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-circle me-1"></i> Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

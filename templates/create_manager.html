@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Manager - Plantation{% endblock %}
+
+{% block content %}
+<div class="row mb-4 fade-in">
+    <div class="col-12">
+        <h2 class="text-primary-green fw-bold">Manager Accounts</h2>
+        <p class="text-muted">Create and manage manager user accounts</p>
+    </div>
+</div>
+
+<div class="row g-4 fade-in">
+    <!-- Create Form -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-bottom-0 fw-bold text-primary-green pt-3">
+                <i class="bi bi-person-plus me-2"></i> Create New Manager
+            </div>
+            <div class="card-body p-4">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Full Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" name="full_name" placeholder="E.g. Rajesh Kumar"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Username (for login)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-at"></i></span>
+                            <input type="text" class="form-control" name="username" placeholder="E.g. rajesh_k"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
+                            <input type="email" class="form-control" name="email" placeholder="E.g. rajesh@example.com">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-secondary">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-lock"></i></span>
+                            <input type="password" class="form-control" name="password" placeholder="Set a password"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Profile Photo</label>
+                        <input type="file" class="form-control" name="photo" accept="image/*">
+                        <small class="form-text text-muted">Optional. JPG/PNG supported.</small>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary py-2 fw-bold">
+                            <i class="bi bi-check-circle me-2"></i> Create Manager
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Existing Managers -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div
+                class="card-header bg-white border-bottom-0 fw-bold text-primary-green pt-3 d-flex justify-content-between">
+                <span><i class="bi bi-people me-2"></i> Active Managers</span>
+                <span class="badge bg-primary-green rounded-pill">{{ managers|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th scope="col" class="ps-4">#</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Username</th>
+                                <th scope="col">Email</th>
+                                <th scope="col">Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in managers %}
+                            <tr>
+                                <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if m.mgr_profile and m.mgr_profile.photo %}
+                                        <img src="{{ m.mgr_profile.photo.url }}" alt="{{ m.get_full_name }}"
+                                            class="me-2"
+                                            style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
+                                        {% else %}
+                                        <div class="me-2 bg-light-green text-primary-green d-flex align-items-center justify-content-center"
+                                            style="width: 36px; height: 36px; border-radius: 50%; font-weight: bold; font-size: 0.85rem;">
+                                            {{ m.first_name|slice:":1" }}
+                                        </div>
+                                        {% endif %}
+                                        <span class="fw-medium">{{ m.get_full_name|default:m.username }}</span>
+                                    </div>
+                                </td>
+                                <td><code>{{ m.username }}</code></td>
+                                <td class="text-secondary">{{ m.email|default:"-" }}</td>
+                                <td class="text-secondary">{{ m.date_joined|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    <i class="bi bi-person-badge fs-1 d-block mb-3"></i>
+                                    <p>No managers yet. Create one using the form.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

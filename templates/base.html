@@ -1,0 +1,203 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Rubber Plantation Management{% endblock %}</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    {% if user.is_authenticated %}
+    <div id="wrapper">
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <div class="sidebar-heading">
+                <i class="bi bi-tree-fill me-2"></i> RubberSystem
+            </div>
+            <div class="list-group list-group-flush mt-3">
+
+                <!-- Shared -->
+                <a href="{% url 'dashboard' %}"
+                    class="list-group-item-sidebar {% if 'dashboard' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-grid-1x2-fill"></i> Dashboard
+                </a>
+
+                <!-- Admin & Manager -->
+                {% if user.is_superuser or user.groups.all.0.name == 'Manager' %}
+                <a href="{% url 'block_list' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'block_list' %}active{% endif %}">
+                    <i class="bi bi-map-fill"></i> Blocks
+                </a>
+                <a href="{% url 'tapper_list' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'tapper_list' %}active{% endif %}">
+                    <i class="bi bi-people-fill"></i> Tappers
+                </a>
+                {% endif %}
+
+                <!-- Manager Only -->
+                {% if user.groups.all.0.name == 'Manager' %}
+                <a href="{% url 'tapper_assignments' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'tapper_assignments' %}active{% endif %}">
+                    <i class="bi bi-diagram-3-fill"></i> Assignments
+                </a>
+                {% endif %}
+
+                <!-- Admin Only -->
+                {% if user.is_superuser %}
+                <a href="{% url 'create_manager' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'create_manager' %}active{% endif %}">
+                    <i class="bi bi-person-lines-fill"></i> Managers
+                </a>
+                {% endif %}
+
+                <!-- Tapper Only -->
+                {% if user.groups.all.0.name == 'Tapper' %}
+                <a href="{% url 'latex_collection' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'latex_collection' %}active{% endif %}">
+                    <i class="bi bi-droplet-fill"></i> Log Latex
+                </a>
+                {% endif %}
+
+                <!-- Reports -->
+                {% if user.is_superuser or user.groups.all.0.name == 'Manager' %}
+                <a href="{% url 'reports' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
+                    <i class="bi bi-bar-chart-fill"></i> Reports
+                </a>
+                {% endif %}
+
+                {% if user.is_superuser %}
+                <a href="/admin" target="_blank" class="list-group-item-sidebar mt-4">
+                    <i class="bi bi-shield-lock-fill"></i> System Admin
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- Page Content Wrapper -->
+        <div id="page-content-wrapper">
+            <!-- Top Navbar -->
+            <nav class="top-navbar d-flex justify-content-between align-items-center">
+                <!-- Mobile toggle button -->
+                <button class="btn btn-outline-primary d-lg-none" id="menu-toggle">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+
+                <div class="d-none d-lg-block">
+                    <!-- Space for breadcrumb or title if needed -->
+                    {% block page_title_nav %}{% endblock %}
+                </div>
+
+                <!-- Right profile menu -->
+                <ul class="navbar-nav ms-auto flex-row align-items-center">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#"
+                            id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="role-badge 
+                                {% if user.is_superuser %}role-admin
+                                {% elif user.groups.all.0.name == 'Manager' %}role-manager
+                                {% else %}role-tapper{% endif %} d-none d-md-inline-block">
+                                {% if user.is_superuser %}Admin
+                                {% elif user.groups.all.0.name == 'Manager' %}Manager
+                                {% else %}Tapper{% endif %}
+                            </span>
+                            <div class="avatar-circle bg-light-green text-primary-green d-flex justify-content-center align-items-center"
+                                style="width: 32px; height: 32px;">
+                                {% if user.first_name %}{{ user.first_name|slice:":1" }}{% else %}<i
+                                    class="bi bi-person-fill"></i>{% endif %}
+                            </div>
+                            <span class="d-none d-sm-inline-block fw-medium text-dark">
+                                {{ user.get_full_name|default:user.username }}
+                            </span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0"
+                            aria-labelledby="profileDropdown">
+                            <li class="px-3 py-2 text-muted small border-bottom mb-1">
+                                <i class="bi bi-envelope me-2"></i>{{ user.email|default:"No email setup" }}
+                            </li>
+                            <li><a class="dropdown-item py-2" href="{% url 'my_profile' %}"><i
+                                        class="bi bi-person-circle me-2 text-muted"></i> My Profile</a></li>
+                            <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i
+                                        class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Main Content Area -->
+            <main class="container-fluid px-4 py-4 fade-in flex-grow-1">
+                {% else %}
+                <!-- Public/Login Layout without sidebar -->
+                <main class="container py-4 fade-in">
+                    {% endif %}
+
+                    <!-- Messages -->
+                    {% if messages %}
+                    <div class="mb-4">
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% block content %}{% endblock %}
+
+                    {% if user.is_authenticated %}
+                </main>
+
+                <!-- Footer -->
+                <footer class="footer mt-auto">
+                    <div class="container-fluid px-4">
+                        <p class="mb-0 text-muted">&copy; 2026 Rubber Plantation Management System</p>
+                    </div>
+                </footer>
+        </div>
+        <!-- /#page-content-wrapper -->
+    </div>
+    <!-- /#wrapper -->
+    {% else %}
+    </main>
+    {% endif %}
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Sidebar Toggle Script -->
+    <script>
+        document.getElementById('menu-toggle')?.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.getElementById('wrapper').classList.toggle('toggled');
+        });
+    </script>
+
+    <!-- Modal fix -->
+    <script>
+        function clearStuckModals() {
+            document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+        clearStuckModals();
+        setTimeout(clearStuckModals, 500);
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

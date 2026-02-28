@@ -1,0 +1,614 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manager Dashboard - Rubber Plantation{% endblock %}
+
+{% block page_title_nav %}
+<h4 class="mb-0 fw-bold text-dark d-none d-md-block">Manager Dashboard</h4>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h4 class="text-primary-green fw-bold mb-1">Overview</h4>
+        <p class="text-muted mb-0">Assignment management and productivity</p>
+    </div>
+    <a href="{% url 'tapper_assignments' %}" class="btn btn-primary-green shadow-sm">
+        <i class="bi bi-diagram-3 me-2"></i> Manage Assignments
+    </a>
+</div>
+
+<!-- Weather Alert System -->
+{% if weather_data %}
+<div class="card border-0 shadow-sm mb-4 fade-in" style="border-radius: 12px; overflow: hidden;">
+    <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-4">
+            <div class="weather-icon rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 60px; height: 60px; background-color: rgba(27, 94, 32, 0.1);">
+                {% if 'Clear' in weather_data.condition %}
+                <i class="bi bi-sun text-warning fs-1"></i>
+                {% elif 'Rain' in weather_data.condition or 'Drizzle' in weather_data.condition %}
+                <i class="bi bi-cloud-rain text-primary fs-1"></i>
+                {% elif 'Storm' in weather_data.condition or 'Thunder' in weather_data.condition %}
+                <i class="bi bi-cloud-lightning-rain text-danger fs-1"></i>
+                {% else %}
+                <i class="bi bi-cloud text-secondary fs-1"></i>
+                {% endif %}
+            </div>
+
+            <div>
+                <h5 class="fw-bold mb-1 text-dark" style="font-size: 1.5rem;">
+                    {{ weather_data.temperature }}°C
+                </h5>
+                <p class="text-muted mb-0" style="font-size: 0.95rem;">
+                    <span>{{ weather_data.condition }}</span> &bull;
+                    <span>{{ weather_data.rain_probability }}% Rain</span> &bull;
+                    <span>{{ weather_data.humidity }}% Humidity</span>
+                </p>
+            </div>
+        </div>
+
+        <div>
+            {% if weather_data.alert_level == 'normal' %}
+            <span class="badge bg-success rounded-pill px-3 py-2 fs-6 shadow-sm">
+                <i class="bi bi-check-circle me-1"></i> {{ weather_data.alert_message }}
+            </span>
+            {% elif weather_data.alert_level == 'caution' %}
+            <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fs-6 shadow-sm">
+                <i class="bi bi-exclamation-triangle me-1"></i> {{ weather_data.alert_message }}
+            </span>
+            {% elif weather_data.alert_level == 'danger' %}
+            <span class="badge bg-danger rounded-pill px-3 py-2 fs-6 shadow-sm">
+                <i class="bi bi-shield-exclamation me-1"></i> {{ weather_data.alert_message }}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Unassigned Alert -->
+{% if total_unassigned > 0 %}
+<div class="alert alert-warning d-flex align-items-center shadow-sm mb-4 fade-in" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-warning"></i>
+    <div>
+        <strong class="text-dark">{{ total_unassigned }} tapper{{ total_unassigned|pluralize }} not assigned</strong> to
+        any block.
+        <a href="{% url 'tapper_assignments' %}" class="fw-bold text-dark ms-2 text-decoration-underline">Assign them
+            now</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- KPI Cards -->
+<div class="row g-4 mb-4 fade-in">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Assigned Tappers</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-person-check-fill"></i></div>
+                </div>
+                <div class="kpi-value">{{ total_assigned }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 {% if total_unassigned > 0 %}border-start border-4 border-warning{% endif %}">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Unassigned</div>
+                    <div
+                        class="avatar-circle {% if total_unassigned > 0 %}bg-warning bg-opacity-10 text-warning{% else %}bg-light-green{% endif %}">
+                        <i class="bi bi-person-exclamation"></i>
+                    </div>
+                </div>
+                <div class="kpi-value">{{ total_unassigned }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Today's Latex</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-droplet-half"></i></div>
+                </div>
+                <div class="kpi-value">{{ today_latex }} <span class="fs-5 text-muted fw-normal">L</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Monthly Latex</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-calendar-check-fill"></i></div>
+                </div>
+                <div class="kpi-value">{{ monthly_latex }} <span class="fs-5 text-muted fw-normal">L</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 fade-in">
+    <!-- Today's Attendance -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-check-fill me-2"></i>Today's Attendance</span>
+                <span class="badge bg-primary-green rounded-pill px-3">{{ today_attendance|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover">
+                        <thead class="position-sticky top-0 shadow-sm z-1">
+                            <tr>
+                                <th>Tapper</th>
+                                <th>Block</th>
+                                <th class="text-end">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for att in today_attendance %}
+                            <tr>
+                                <td class="fw-medium">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="bg-success rounded-circle" style="width: 8px; height: 8px;"></div>
+                                        {{ att.tapper.get_full_name|default:att.tapper.username }}
+                                    </div>
+                                </td>
+                                <td>{{ att.block.name }}</td>
+                                <td class="text-end text-muted small">{{ att.created_at|time:"g:i A" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-5">
+                                    <i class="bi bi-clock-history fs-3 d-block mb-2 opacity-50"></i>
+                                    No attendance marked yet today.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Block-wise Production -->
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-fill me-2"></i> Block-wise Production ({{ current_month_name }})
+            </div>
+            <div class="card-body">
+                {% for block in block_production %}
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-medium text-dark">
+                            {{ block.name }}
+                            <span class="badge bg-light-green ms-2 fw-normal">
+                                {{ block.active_tappers }} tapper{{ block.active_tappers|pluralize }}
+                            </span>
+                        </span>
+                        <span class="fw-bold text-primary-green">{{ block.monthly_total|default:"0" }} L</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-primary-green" role="progressbar"
+                            style="width: {{ block.percentage }}%"></div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center py-5">
+                    <i class="bi bi-bar-chart fs-3 d-block mb-2 opacity-50"></i>
+                    No production data this month.
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Assignments -->
+    <div class="col-lg-12 mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people-fill me-2"></i> Active Assignments</span>
+                <span class="badge bg-primary-green rounded-pill px-3">{{ total_assigned }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Tapper Name</th>
+                                <th>Assigned Block</th>
+                                <th>Assigned Date</th>
+                                <th class="text-end">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in active_assignments %}
+                            <tr>
+                                <td class="fw-medium text-dark">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="avatar-circle bg-light-green"
+                                            style="width: 28px; height: 28px; font-size: 0.75rem;">
+                                            {{ a.tapper.user.first_name|slice:":1"|default:"T" }}
+                                        </div>
+                                        {{ a.tapper }}
+                                    </div>
+                                </td>
+                                <td><i class="bi bi-geo-alt-fill text-muted me-1"></i> {{ a.block.name }}</td>
+                                <td class="text-muted">{{ a.assigned_date }}</td>
+                                <td class="text-end">
+                                    <span
+                                        class="badge bg-primary-green bg-opacity-10 text-primary-green px-3 py-2 rounded-pill">Active</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted">
+                                    No active assignments. <a href="{% url 'tapper_assignments' %}"
+                                        class="fw-bold text-primary-green">Create one</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payroll & Performance Monitoring -->
+<div class="row g-4 mt-4 mb-5 fade-in" id="payrollSection">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-wallet2 text-primary-green me-2"></i>Payroll & Performance
+            ({{ selected_month_str }})</h5>
+        <form method="POST" action="{% url 'generate_payroll' %}" class="d-flex gap-2">
+            {% csrf_token %}
+            <input type="month" name="month" class="form-control form-control-sm" value="{{ selected_month_str }}"
+                required>
+            <button type="submit" class="btn btn-sm btn-primary-green d-flex align-items-center gap-1">
+                <i class="bi bi-gear-fill"></i> Generate
+            </button>
+        </form>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body p-3">
+                <div class="text-muted small mb-1">Total Wage Liability</div>
+                <h4 class="fw-bold text-dark mb-0">₹{{ total_wage_liability|floatformat:2 }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body p-3">
+                <div class="text-muted small mb-1">Avg Performance</div>
+                <h4 class="fw-bold text-dark mb-0">{{ avg_performance|floatformat:1 }}%</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body p-3">
+                <div class="text-muted small mb-1">Highest Earner</div>
+                <h4 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 150px;">
+                    {% if highest_earning %}
+                    {{ highest_earning.tapper.get_full_name|default:highest_earning.tapper.username }}
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body p-3">
+                <div class="text-muted small mb-1">Needs Review</div>
+                <h4 class="fw-bold text-danger mb-0">{{ underperforming_count }}</h4>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wage Data Table -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex justify-content-between">
+                <h6 class="fw-bold mb-0">Wage Records</h6>
+                <span class="badge bg-light text-dark">{{ wage_records.count }} Records</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="position-sticky top-0 bg-white shadow-sm z-1">
+                            <tr>
+                                <th class="ps-3">Tapper</th>
+                                <th>Att.</th>
+                                <th>Latex</th>
+                                <th>Exp.</th>
+                                <th>Perf.</th>
+                                <th class="text-end pe-3">Total Wage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in wage_records %}
+                            <tr>
+                                <td class="ps-3 fw-medium text-dark">
+                                    {{ record.tapper.get_full_name|default:record.tapper.username }}
+                                </td>
+                                <td>{{ record.attendance_days }}d</td>
+                                <td>{{ record.total_latex_kg|floatformat:1 }}L</td>
+                                <td>{{ record.expected_yield|floatformat:1 }}L</td>
+                                <td>
+                                    {% if record.performance_percentage >= 110 %}
+                                    <span class="badge" style="background-color: #1b5e20;">Excellent</span>
+                                    {% elif record.performance_percentage >= 95 %}
+                                    <span class="badge bg-success">Good</span>
+                                    {% elif record.performance_percentage >= 80 %}
+                                    <span class="badge bg-warning text-dark">Moderate</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Review</span>
+                                    {% endif %}
+                                    <div class="small text-muted mt-1">
+                                        {{ record.performance_percentage|floatformat:1 }}%
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 fw-bold text-primary-green">
+                                    ₹{{ record.total_wage|floatformat:2 }}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">No wage records generated. Select a
+                                    month and click Generate.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Productivity Map -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0">Productivity Map</h6>
+            </div>
+            <div class="card-body p-2">
+                <div id="productivityMap" style="height: 400px; width: 100%; border-radius: 8px; z-index: 1;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Monitoring Map & Table -->
+<div class="row g-4 mt-1 mb-5" id="riskMonitoringSection">
+    <div class="col-lg-12">
+        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-shield-exclamation text-danger me-2"></i>Risk & Incident
+            Monitoring</h5>
+    </div>
+
+    <!-- Map View -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
+                <h6 class="fw-bold mb-0">Active Incident Map</h6>
+            </div>
+            <div class="card-body p-3">
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                <div id="managerIncidentMap" style="height: 450px; width: 100%; border-radius: 8px; z-index: 1;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table View -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 h-100">
+            <div
+                class="card-header bg-white border-bottom-0 pt-4 pb-2 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0">Open Incidents Queue</h6>
+                <span class="badge bg-danger rounded-pill">{{ open_incidents.count }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="position-sticky top-0 bg-white shadow-sm z-1">
+                            <tr>
+                                <th class="ps-4">Incident Details</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inc in open_incidents %}
+                            <tr id="incidentRow-{{ inc.id }}">
+                                <td class="ps-4 py-3">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="avatar-circle 
+                                            {% if inc.severity == 'HIGH' %}bg-danger text-white
+                                            {% elif inc.severity == 'MEDIUM' %}bg-warning text-dark
+                                            {% else %}bg-success text-white{% endif %}"
+                                            style="width: 40px; height: 40px;">
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold mb-1 text-dark">{{ inc.get_incident_type_display }}</h6>
+                                            <div class="text-muted small mb-1">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>
+                                                <span>{{ inc.block.name }}</span> &bull;
+                                                <!-- prettier-ignore -->
+                                                <span>{{ inc.tapper.get_full_name|default:inc.tapper.username }}</span>
+                                            </div>
+                                            <div class="small">{{ inc.description|truncatechars:50 }}</div>
+                                            <div class="text-muted small mt-1" style="font-size: 0.75rem;">
+                                                <!-- prettier-ignore -->
+                                                <span>{{ inc.created_at|date:"M d, Y h:i A" }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-success fw-bold resolve-btn"
+                                        data-id="{{ inc.id }}">
+                                        <i class="bi bi-check2-all me-1"></i>Resolve
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2" class="text-center py-5 text-muted">
+                                    <i class="bi bi-shield-check fs-2 text-success d-block mb-3 opacity-75"></i>
+                                    No open incidents. Field operations are clear!
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize Map
+        const map = L.map('managerIncidentMap').setView([9.9312, 76.2673], 13);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Load incidents directly from backend JSON dump safely
+        const incidentsString = '{{ incidents_json|escapejs }}';
+        const incidents = incidentsString ? JSON.parse(incidentsString) : [];
+        const markers = [];
+        incidents.forEach(inc => {
+            let markerColor = '#4CAF50'; // Low
+            if (inc.severity === 'HIGH') markerColor = '#D32F2F';
+            else if (inc.severity === 'MEDIUM') markerColor = '#FFA000';
+
+            const customIcon = L.divIcon({
+                className: 'custom-incident-marker',
+                html: `<div style="background-color: ${markerColor}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    <h6 style="margin: 0; padding-bottom: 5px; border-bottom: 1px solid #ccc; font-weight: bold;">
+                        ${inc.type} <span style="font-size: 0.75rem; color: ${markerColor}; margin-left:10px;">• ${inc.severity}</span>
+                    </h6>
+                    <div style="margin-top: 10px; font-size: 13px;">
+                        <strong>Block:</strong> ${inc.block}<br>
+                        <strong>Reported By:</strong> ${inc.tapper}<br>
+                        <strong>Time:</strong> ${inc.date}<br>
+                        <p style="margin-top: 8px; margin-bottom: 0; color: #555;"><i>"${inc.description}"</i></p>
+                    </div>
+                </div>
+            `;
+
+            const marker = L.marker([inc.lat, inc.lng], { icon: customIcon }).bindPopup(popupContent).addTo(map);
+            markers.push(marker);
+        });
+
+        if (markers.length > 0) {
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds(), { padding: [40, 40] });
+            setTimeout(() => { map.invalidateSize(); }, 500);
+        } else {
+            setTimeout(() => { map.invalidateSize(); }, 500);
+        }
+
+        // AJAX Resolve Button Logic
+        document.querySelectorAll('.resolve-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const incidentId = this.getAttribute('data-id');
+                const row = document.getElementById(`incidentRow-${incidentId}`);
+                const originalHtml = this.innerHTML;
+
+                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                this.classList.add('disabled');
+
+                fetch(`/api/incidents/resolve/${incidentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            row.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateX(20px)';
+                            setTimeout(() => {
+                                row.remove();
+                                // If we want to refresh map, page reload is easiest for manager
+                                window.location.reload();
+                            }, 500);
+                        } else {
+                            alert("Error: " + data.error);
+                            this.innerHTML = originalHtml;
+                            this.classList.remove('disabled');
+                        }
+                    })
+                    .catch(err => {
+                        alert("Network error.");
+                        this.innerHTML = originalHtml;
+                        this.classList.remove('disabled');
+                    });
+            });
+        });
+
+        // Initialize Productivity Map
+        const prodMap = L.map('productivityMap').setView([9.9312, 76.2673], 13);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
+        }).addTo(prodMap);
+
+        const blocksStr = '{{ productivity_blocks_json|escapejs }}';
+        const prodBlocks = blocksStr ? JSON.parse(blocksStr) : [];
+        const prodLayerGroup = L.featureGroup().addTo(prodMap);
+
+        prodBlocks.forEach(b => {
+            if (b.boundary) {
+                const layer = L.geoJSON(b.boundary, {
+                    style: {
+                        color: b.color,
+                        weight: 2,
+                        fillColor: b.color,
+                        fillOpacity: 0.5
+                    }
+                }).bindPopup(`
+                    <div style="min-width: 150px; text-align: center;">
+                        <h6 style="font-weight: bold; margin-bottom: 5px;">${b.name}</h6>
+                        <span style="background-color: ${b.color}; color: ${b.color === '#ff9800' ? '#000' : '#fff'}; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem;">${b.label}</span>
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #555;">Avg Perf: <strong>${b.perf}%</strong></div>
+                    </div>
+                `);
+                prodLayerGroup.addLayer(layer);
+            }
+        });
+
+        if (prodBlocks.length > 0) {
+            prodMap.fitBounds(prodLayerGroup.getBounds(), { padding: [20, 20] });
+            setTimeout(() => { prodMap.invalidateSize(); }, 500);
+        } else {
+            setTimeout(() => { prodMap.invalidateSize(); }, 500);
+        }
+    });
+</script>
+{% endblock %}

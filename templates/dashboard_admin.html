@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Admin Dashboard - Rubber Plantation{% endblock %}
+
+{% block page_title_nav %}
+<h4 class="mb-0 fw-bold text-dark d-none d-md-block">Admin Dashboard</h4>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h4 class="text-primary-green fw-bold mb-1">System Overview</h4>
+        <p class="text-muted mb-0">Plantation-wide analytics</p>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-4 mb-4 fade-in">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Total Blocks</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+                </div>
+                <div class="kpi-value">{{ total_blocks }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Active Tappers</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-people-fill"></i></div>
+                </div>
+                <div class="kpi-value">{{ total_tappers }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-start border-4" style="border-color: var(--primary-green) !important;">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Today's Latex</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-droplet-fill"></i></div>
+                </div>
+                <div class="kpi-value text-primary-green">{{ today_latex }} <span class="fs-5 fw-normal">L</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body kpi-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="kpi-label">Managers</div>
+                    <div class="avatar-circle bg-light-green"><i class="bi bi-person-badge-fill"></i></div>
+                </div>
+                <div class="kpi-value">{{ total_managers }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Summary Banner -->
+<div class="row mb-4 fade-in">
+    <div class="col-12">
+        <div class="card bg-primary-green text-white position-relative overflow-hidden" style="border-radius: 16px;">
+            <div class="card-body p-4 p-md-5 text-center position-relative z-1">
+                <h5 class="fw-semibold mb-1 opacity-75 text-uppercase tracking-wider">
+                    {{ current_month_name }} {{ current_year }}
+                </h5>
+                <p class="mb-2 fs-5">Total Monthly Collection</p>
+                <h2 class="display-4 fw-bold mb-0">{{ monthly_latex }} <span class="fs-4 fw-normal">Liters</span></h2>
+            </div>
+            <i class="bi bi-calendar-check position-absolute text-white"
+                style="font-size: 14rem; opacity: 0.05; right: -2rem; bottom: -4rem; z-index: 0; pointer-events: none;"></i>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 fade-in">
+    <!-- Today's Attendance -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-check-fill me-2"></i>Today's Attendance</span>
+                <span class="badge bg-primary-green rounded-pill px-3">{{ today_attendance|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover">
+                        <thead class="position-sticky top-0 shadow-sm z-1">
+                            <tr>
+                                <th>Tapper</th>
+                                <th>Block</th>
+                                <th class="text-end">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for att in today_attendance %}
+                            <tr>
+                                <td class="fw-medium">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="bg-success rounded-circle" style="width: 8px; height: 8px;"></div>
+                                        {{ att.tapper.get_full_name|default:att.tapper.username }}
+                                    </div>
+                                </td>
+                                <td class="text-muted"><i class="bi bi-geo-alt-fill me-1"></i>{{ att.block.name }}</td>
+                                <td class="text-end text-muted small">{{ att.created_at|time:"g:i A" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-5">
+                                    <i class="bi bi-clock-history fs-3 d-block mb-2 opacity-50"></i>
+                                    No attendance marked today.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Block Performance -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-pie-chart-fill me-2"></i> Block Performance ({{ current_month_name }})
+            </div>
+            <div class="card-body">
+                {% for block in block_performance %}
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-medium text-dark">{{ block.name }}</span>
+                        <span class="fw-bold text-primary-green">{{ block.monthly_total|default:"0" }} L</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-primary-green" role="progressbar"
+                            style="width: {{ block.percentage }}%"></div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center py-5">
+                    <i class="bi bi-bar-chart fs-3 d-block mb-2 opacity-50"></i>
+                    No production data yet this month.
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Tappers -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-trophy-fill me-2 text-warning"></i> Top Performing Tappers
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for tapper in top_tappers %}
+                    {% if tapper.monthly_total %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-0">
+                        <div class="d-flex align-items-center">
+                            <div class="badge {% if forloop.counter == 1 %}bg-warning{% elif forloop.counter == 2 %}bg-secondary bg-opacity-50{% else %}bg-dark bg-opacity-25{% endif %} rounded-circle me-3 text-dark d-flex align-items-center justify-content-center"
+                                style="width: 24px; height: 24px;">
+                                {{ forloop.counter }}
+                            </div>
+                            <div>
+                                <div class="fw-medium text-dark">{{ tapper }}</div>
+                                {% if tapper.created_by %}
+                                <div class="text-muted" style="font-size: 0.75rem;">
+                                    <i class="bi bi-person-badge me-1"></i>
+                                    {{ tapper.created_by.get_full_name|default:tapper.created_by.username }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="fw-bold text-primary-green">{{ tapper.monthly_total }} L</span>
+                    </li>
+                    {% endif %}
+                    {% empty %}
+                    <li class="list-group-item text-muted text-center py-5 border-0">
+                        <i class="bi bi-award fs-3 d-block mb-2 opacity-50"></i>
+                        No data yet.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Collections -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history me-2"></i>Recent Collections</span>
+                <a href="{% url 'reports' %}" class="btn btn-sm btn-outline-primary">View Reports</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Block</th>
+                                <th>Tapper</th>
+                                <th>Quantity</th>
+                                <th class="text-end">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in recent_collections %}
+                            <tr>
+                                <td class="text-muted">{{ record.date }}</td>
+                                <td><i class="bi bi-geo-alt-fill text-muted me-1"></i>{{ record.block.name }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-circle bg-light-green me-2"
+                                            style="width: 24px; height: 24px; font-size: 0.7rem;">
+                                            {{ record.tapper.user.first_name|slice:":1"|default:"T" }}
+                                        </div>
+                                        <span class="fw-medium">{{ record.tapper }}</span>
+                                    </div>
+                                </td>
+                                <td class="fw-bold text-dark">{{ record.quantity }} L</td>
+                                <td class="text-end">
+                                    <span
+                                        class="badge bg-primary-green bg-opacity-10 text-primary-green px-3 py-2 rounded-pill">Recorded</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-3 d-block mb-2 opacity-50"></i>
+                                    No collections recorded yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

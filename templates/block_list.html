@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manage Blocks - Plantation{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="text-primary-green fw-bold">Plantation Blocks</h2>
+        <p class="text-muted mb-0">Manage your rubber plantation areas</p>
+    </div>
+    <a href="{% url 'block_create' %}" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm">
+        <i class="bi bi-plus-lg"></i> Create Block with Map
+    </a>
+</div>
+
+<!-- Blocks Table Card -->
+<div class="card shadow-sm border-0 fade-in">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th scope="col" class="ps-4">#</th>
+                        <th scope="col">Block Name</th>
+                        <th scope="col">Area (Acres)</th>
+                        <th scope="col">Trees</th>
+                        <th scope="col">Location</th>
+                        <th scope="col" class="text-center">Active Tappers</th>
+                        <th scope="col" class="text-center">Map</th>
+                        <th scope="col" class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for block in blocks %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+                        <td class="fw-medium text-dark">{{ block.name }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border">
+                                {% if block.area_hectares %}
+                                {{ block.area_hectares|floatformat:2 }} Ha
+                                {% else %}
+                                {{ block.area }} Ac
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>{{ block.number_of_trees }}</td>
+                        <td class="text-secondary">{{ block.location|default:"-" }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-primary-green rounded-pill">{{ block.active_tappers }}</span>
+                        </td>
+                        <td class="text-center">
+                            {% if block.boundary %}
+                            <span class="text-success" title="Boundary mapped"><i class="bi bi-geo-alt-fill"></i></span>
+                            {% else %}
+                            <span class="text-muted" title="No boundary">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-light text-primary-green me-1" title="Edit"
+                                data-id="{{ block.id }}" data-name="{{ block.name }}" data-area="{{ block.area }}"
+                                data-trees="{{ block.number_of_trees }}" data-location="{{ block.location|default:'' }}"
+                                onclick="openEditBlockModal(this)">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button class="btn btn-sm btn-light text-danger" title="Delete"
+                                onclick="openDeleteBlockModal('{{ block.id }}', '{{ block.name|escapejs }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                            <p>No blocks added yet. Click "Add New Block" to get started.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Block Modal -->
+<div class="modal fade" id="editBlockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold text-primary-green">Edit Block</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" id="editBlockForm">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Block Name</label>
+                        <input type="text" class="form-control" id="editBlockName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Area (in Acres)</label>
+                        <input type="number" step="0.1" class="form-control" id="editBlockArea" name="area" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Number of Trees</label>
+                        <input type="number" class="form-control" id="editBlockTrees" name="number_of_trees">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Location / Description</label>
+                        <textarea class="form-control" id="editBlockLocation" name="location" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 d-flex justify-content-between px-4 pb-4">
+                    <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Update Block</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Block Modal -->
+<div class="modal fade" id="deleteBlockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white border-bottom-0">
+                <h5 class="modal-title fw-bold">Delete Block</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-exclamation-circle text-danger mb-3" style="font-size: 3rem;"></i>
+                <p class="fs-5">Are you sure you want to delete <strong id="deleteBlockName"></strong>?</p>
+                <p class="text-muted small">This will also remove all related assignments and collections.</p>
+            </div>
+            <div class="modal-footer border-top-0 d-flex justify-content-center px-4 pb-4">
+                <button type="button" class="btn btn-light text-muted me-2" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" id="deleteBlockForm">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openEditBlockModal(element) {
+        document.getElementById('editBlockName').value = element.dataset.name;
+        document.getElementById('editBlockArea').value = element.dataset.area;
+        document.getElementById('editBlockTrees').value = element.dataset.trees;
+        document.getElementById('editBlockLocation').value = element.dataset.location;
+        document.getElementById('editBlockForm').action = `/blocks/edit/${element.dataset.id}/`;
+        new bootstrap.Modal(document.getElementById('editBlockModal')).show();
+    }
+
+    function openDeleteBlockModal(id, name) {
+        document.getElementById('deleteBlockName').textContent = name;
+        document.getElementById('deleteBlockForm').action = `/blocks/delete/${id}/`;
+        new bootstrap.Modal(document.getElementById('deleteBlockModal')).show();
+    }
+</script>
+{% endblock %}

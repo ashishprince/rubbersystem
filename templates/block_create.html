@@ -1,0 +1,460 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Block with Map - Plantation{% endblock %}
+
+{% block content %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+<style>
+    #blockMap {
+        height: 480px;
+        border-radius: 12px;
+        border: 2px solid #dee2e6;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
+        z-index: 1;
+    }
+
+    .map-info-overlay {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        border-radius: 10px;
+        padding: 12px 18px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+        font-size: 0.9rem;
+        min-width: 180px;
+    }
+
+    .map-info-overlay .area-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #1a7431;
+    }
+
+    .boundary-status {
+        transition: all 0.3s ease;
+    }
+
+    .boundary-status.drawn {
+        color: #198754;
+    }
+
+    .boundary-status.pending {
+        color: #dc3545;
+    }
+</style>
+
+<div class="row mb-4 fade-in">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="text-primary-green fw-bold"><i class="bi bi-map me-2"></i>Create Block with Map</h2>
+            <p class="text-muted mb-0">Draw a boundary polygon on the satellite map</p>
+        </div>
+        <a href="{% url 'block_list' %}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back to Blocks
+        </a>
+    </div>
+</div>
+
+<form method="post" id="blockCreateForm">
+    {% csrf_token %}
+    <input type="hidden" name="boundary" id="boundaryInput">
+    <input type="hidden" name="area_sq_meters" id="areaSqMetersInput">
+
+    <div class="row g-4 fade-in">
+        <!-- Map Column -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div
+                    class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-primary-green mb-0">
+                        <i class="bi bi-globe-americas me-2"></i>Satellite Map
+                    </h5>
+                    <span class="boundary-status pending" id="boundaryStatus">
+                        <i class="bi bi-exclamation-circle me-1"></i> No boundary drawn
+                    </span>
+                </div>
+                <div class="card-body p-3 position-relative">
+                    <!-- Coordinate Search Bar -->
+                    <div class="d-flex gap-2 mb-3 p-2 bg-light rounded-3 align-items-end">
+                        <div class="flex-grow-1">
+                            <label class="form-label text-secondary small mb-1 fw-medium">Latitude</label>
+                            <input type="number" step="any" class="form-control form-control-sm" id="searchLat"
+                                placeholder="E.g. 9.9312" value="9.93">
+                        </div>
+                        <div class="flex-grow-1">
+                            <label class="form-label text-secondary small mb-1 fw-medium">Longitude</label>
+                            <input type="number" step="any" class="form-control form-control-sm" id="searchLng"
+                                placeholder="E.g. 76.2673" value="76.26">
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary px-3" onclick="goToLocation()">
+                                <i class="bi bi-geo-alt-fill me-1"></i> Go
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary px-3"
+                                onclick="useMyLocation()" title="Use my current GPS location">
+                                <i class="bi bi-crosshair"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="blockMap"></div>
+                    <div class="map-info-overlay" id="mapInfoOverlay" style="display: none;">
+                        <p class="text-muted small text-uppercase mb-1">Polygon Area</p>
+                        <p class="area-value mb-1" id="overlayArea">—</p>
+                        <p class="text-muted small mb-0" id="overlayAreaAcres">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Column -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom-0 fw-bold text-primary-green pt-3">
+                    <i class="bi bi-pencil-square me-2"></i> Block Details
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-medium">Block Name *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-tag"></i></span>
+                            <input type="text" class="form-control" name="name" placeholder="E.g. North Division A"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-medium">Area (Acres) *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-rulers"></i></span>
+                            <input type="number" step="0.01" class="form-control" name="area" id="areaInput"
+                                placeholder="Auto-calculated from polygon" required>
+                        </div>
+                        <small class="form-text text-muted">Auto-filled when you draw a polygon.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-medium">Number of Trees</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-tree"></i></span>
+                            <input type="number" class="form-control" name="number_of_trees" value="0"
+                                placeholder="E.g. 500">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-medium">Location / Description</label>
+                        <textarea class="form-control" name="location" rows="3"
+                            placeholder="Describe the terrain..."></textarea>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="alert alert-light border small mb-3" id="drawHelp">
+                        <i class="bi bi-info-circle text-primary me-1"></i>
+                        Use the <strong>polygon tool</strong> <i class="bi bi-pentagon"></i> on the map to draw the
+                        block boundary.
+                        Click vertices to form the polygon, then click the first point to close it.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary py-2 fw-bold shadow-sm" id="submitBtn">
+                            <i class="bi bi-check-circle me-2"></i> Create Block
+                        </button>
+                        <a href="{% url 'block_list' %}" class="btn btn-light text-muted">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<!-- Turf.js for area calculation -->
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+<script>
+    // Initialize map - centered on Kerala (rubber plantation region)
+    const map = L.map('blockMap', {
+        center: [9.93, 76.26],
+        zoom: 13,
+        zoomControl: true
+    });
+
+    // Esri World Imagery (satellite)
+    const satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 19
+    });
+
+    // OpenStreetMap (street view)
+    const streetLayer = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    });
+
+    // Add satellite by default, with layer switcher
+    satelliteLayer.addTo(map);
+    L.control.layers({
+        'Satellite': satelliteLayer,
+        'Street Map': streetLayer
+    }, null, { position: 'topright' }).addTo(map);
+
+    // Drawing layer
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // Draw control — polygon only
+    const drawControl = new L.Control.Draw({
+        draw: {
+            polygon: {
+                allowIntersection: false,
+                shapeOptions: {
+                    color: '#1a7431',
+                    weight: 3,
+                    fillOpacity: 0.25,
+                    fillColor: '#28a745'
+                }
+            },
+            polyline: false,
+            rectangle: false,
+            circle: false,
+            marker: false,
+            circlemarker: false
+        },
+        edit: {
+            featureGroup: drawnItems,
+            remove: true,
+            edit: true
+        }
+    });
+    map.addControl(drawControl);
+
+    // State
+    let currentPolygon = null;
+
+    function updateBoundaryData(layer) {
+        const geoJSON = layer.toGeoJSON();
+
+        // Store in hidden input
+        document.getElementById('boundaryInput').value = JSON.stringify(geoJSON.geometry);
+
+        // Calculate area with Turf.js
+        const areaSqMeters = turf.area(geoJSON);
+        const areaAcres = (areaSqMeters / 4046.86).toFixed(2);
+        const areaHectares = (areaSqMeters / 10000).toFixed(2);
+
+        document.getElementById('areaSqMetersInput').value = areaSqMeters.toFixed(2);
+        document.getElementById('areaInput').value = areaAcres;
+
+        // Update overlay
+        document.getElementById('mapInfoOverlay').style.display = 'block';
+        document.getElementById('overlayArea').textContent = areaSqMeters.toFixed(0) + ' m²';
+        document.getElementById('overlayAreaAcres').textContent = areaAcres + ' acres (' + areaHectares + ' ha)';
+
+        // Update status
+        const statusEl = document.getElementById('boundaryStatus');
+        statusEl.className = 'boundary-status drawn';
+        statusEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Boundary drawn';
+    }
+
+    function clearBoundaryData() {
+        document.getElementById('boundaryInput').value = '';
+        document.getElementById('areaSqMetersInput').value = '';
+        document.getElementById('areaInput').value = '';
+        document.getElementById('mapInfoOverlay').style.display = 'none';
+
+        const statusEl = document.getElementById('boundaryStatus');
+        statusEl.className = 'boundary-status pending';
+        statusEl.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> No boundary drawn';
+    }
+
+    // On polygon created
+    map.on(L.Draw.Event.CREATED, function (e) {
+        // Remove previous polygon (only one allowed)
+        drawnItems.clearLayers();
+        currentPolygon = e.layer;
+        drawnItems.addLayer(currentPolygon);
+        updateBoundaryData(currentPolygon);
+    });
+
+    // On polygon edited
+    map.on(L.Draw.Event.EDITED, function (e) {
+        e.layers.eachLayer(function (layer) {
+            updateBoundaryData(layer);
+        });
+    });
+
+    // On polygon deleted
+    map.on(L.Draw.Event.DELETED, function () {
+        currentPolygon = null;
+        clearBoundaryData();
+    });
+
+    // ── Overlap visualization layer ──
+    const overlapLayer = L.featureGroup().addTo(map);
+
+    function clearOverlaps() {
+        overlapLayer.clearLayers();
+        const banner = document.getElementById('overlapBanner');
+        if (banner) banner.style.display = 'none';
+    }
+
+    function showOverlaps(overlappingBlocks) {
+        clearOverlaps();
+        overlappingBlocks.forEach(function (block) {
+            if (block.boundary) {
+                const poly = L.geoJSON(block.boundary, {
+                    style: {
+                        color: '#dc3545',
+                        weight: 3,
+                        fillColor: '#dc3545',
+                        fillOpacity: 0.25,
+                        dashArray: '8, 4'
+                    }
+                }).addTo(overlapLayer);
+
+                // Add name tooltip at center
+                poly.eachLayer(function (layer) {
+                    const center = layer.getBounds().getCenter();
+                    L.marker(center, {
+                        icon: L.divIcon({
+                            className: 'overlap-label',
+                            html: '<div style="background:rgba(220,53,69,0.92);color:#fff;padding:4px 12px;border-radius:6px;font-weight:600;font-size:12px;box-shadow:0 2px 8px rgba(220,53,69,0.3);white-space:nowrap;"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + block.name + '</div>',
+                            iconSize: null
+                        })
+                    }).addTo(overlapLayer);
+                });
+            }
+        });
+
+        // Show overlap banner
+        let banner = document.getElementById('overlapBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'overlapBanner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#dc3545,#c82333);color:#fff;padding:12px 24px;text-align:center;font-weight:600;font-size:0.95rem;box-shadow:0 4px 20px rgba(220,53,69,0.4);animation:slideDown 0.3s ease;';
+            document.body.prepend(banner);
+        }
+        const names = overlappingBlocks.map(b => b.name).join(', ');
+        banner.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>Overlap detected with: <strong>' + names + '</strong>. Redraw your polygon to avoid conflict. <button onclick="this.parentElement.style.display=\'none\'" style="background:none;border:none;color:#fff;margin-left:16px;font-size:1.1rem;cursor:pointer;opacity:0.8">&times;</button>';
+        banner.style.display = 'block';
+    }
+
+    // Clear overlaps when user draws a new polygon
+    map.on(L.Draw.Event.DRAWSTART, function () {
+        clearOverlaps();
+    });
+
+    // ── AJAX Form Submission ──
+    document.getElementById('blockCreateForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearOverlaps();
+
+        if (!document.getElementById('boundaryInput').value) {
+            alert('Please draw a boundary polygon on the map before submitting.');
+            return;
+        }
+
+        const formData = new FormData(this);
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
+
+        fetch(this.action || window.location.href, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+            .then(function (response) { return response.json().then(data => ({ ok: response.ok, data })); })
+            .then(function (result) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Create Block';
+
+                if (result.ok) {
+                    // Success — redirect to block list
+                    window.location.href = "{% url 'block_list' %}";
+                } else {
+                    // Error — show overlap visualization if available
+                    if (result.data.overlapping_blocks && result.data.overlapping_blocks.length > 0) {
+                        showOverlaps(result.data.overlapping_blocks);
+                    } else {
+                        alert(result.data.message || 'An error occurred.');
+                    }
+                }
+            })
+            .catch(function () {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Create Block';
+                alert('Network error. Please try again.');
+            });
+    });
+
+    // ── Coordinate Search ──
+    let locationMarker = null;
+
+    function goToLocation() {
+        const lat = parseFloat(document.getElementById('searchLat').value);
+        const lng = parseFloat(document.getElementById('searchLng').value);
+
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            alert('Please enter valid coordinates (Lat: -90 to 90, Lng: -180 to 180)');
+            return;
+        }
+
+        // Fly to location with animation
+        map.flyTo([lat, lng], 17, { duration: 1.5 });
+
+        // Add/move location marker
+        if (locationMarker) {
+            locationMarker.setLatLng([lat, lng]);
+        } else {
+            locationMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'location-pin',
+                    html: '<div style="background:#dc3545;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:16px;"><i class="bi bi-crosshair"></i></div>',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                })
+            }).addTo(map);
+        }
+        locationMarker.bindPopup(`<b>📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</b>`).openPopup();
+    }
+
+    function useMyLocation() {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser.');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                document.getElementById('searchLat').value = pos.coords.latitude.toFixed(6);
+                document.getElementById('searchLng').value = pos.coords.longitude.toFixed(6);
+                goToLocation();
+            },
+            function () {
+                alert('Unable to get your location. Please allow location access.');
+            }
+        );
+    }
+
+    // Also update lat/lng inputs when map is clicked
+    map.on('contextmenu', function (e) {
+        document.getElementById('searchLat').value = e.latlng.lat.toFixed(6);
+        document.getElementById('searchLng').value = e.latlng.lng.toFixed(6);
+    });
+
+    // Allow Enter key to trigger search
+    document.getElementById('searchLat').addEventListener('keypress', function (e) { if (e.key === 'Enter') { e.preventDefault(); goToLocation(); } });
+    document.getElementById('searchLng').addEventListener('keypress', function (e) { if (e.key === 'Enter') { e.preventDefault(); goToLocation(); } });
+</script>
+{% endblock %}
