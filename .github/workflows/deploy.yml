@@ -33,17 +33,39 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            # Pull the latest image
+            # Create a Docker network so the containers can communicate
+            docker network create rubber-net || true
+
+            # Pull the latest web image
             docker pull ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
             
-            # Stop and remove the old container if it exists
-            docker stop rubberplantation-web || true
-            docker rm rubberplantation-web || true
+            # Stop and remove the old containers if they exist
+            docker stop rubberplantation-web rubber-db || true
+            docker rm rubberplantation-web rubber-db || true
             
-            # Run the new container
+            # Start the PostGIS database container
+            docker run -d \
+              --name rubber-db \
+              --network rubber-net \
+              --restart unless-stopped \
+              -e POSTGRES_DB=rubber_db \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD='Ashish2005#' \
+              -v pgdata:/var/lib/postgresql/data \
+              postgis/postgis:15-3.3
+
+            # Wait a few seconds for database to start up
+            sleep 10
+
+            # Run the new web container, connecting it to the database
             docker run -d \
               --name rubberplantation-web \
+              --network rubber-net \
               -p 80:8000 \
               --restart unless-stopped \
-              --env DB_HOST=host.docker.internal \
+              --env DB_HOST=rubber-db \
               ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
+
+            # Run database migrations and load data if available
+            docker exec rubberplantation-web python manage.py migrate || true
+            docker exec rubberplantation-web python manage.py loaddata datadump.json || true
