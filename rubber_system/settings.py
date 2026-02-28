@@ -14,11 +14,11 @@ from pathlib import Path
 import os
 
 # GDAL/GEOS library paths for GeoDjango (from PostgreSQL 15 PostGIS installation)
-GDAL_LIBRARY_PATH = r'C:\Program Files\PostgreSQL\15\bin\libgdal-35.dll'
-GEOS_LIBRARY_PATH = r'C:\Program Files\PostgreSQL\15\bin\libgeos_c.dll'
-
-# Add PostgreSQL bin to PATH so GDAL can find its dependencies
-os.environ['PATH'] = r'C:\Program Files\PostgreSQL\15\bin' + ';' + os.environ.get('PATH', '')
+if os.name == 'nt':
+    GDAL_LIBRARY_PATH = r'C:\Program Files\PostgreSQL\15\bin\libgdal-35.dll'
+    GEOS_LIBRARY_PATH = r'C:\Program Files\PostgreSQL\15\bin\libgeos_c.dll'
+    # Add PostgreSQL bin to PATH so GDAL can find its dependencies
+    os.environ['PATH'] = r'C:\Program Files\PostgreSQL\15\bin' + ';' + os.environ.get('PATH', '')
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -94,7 +94,7 @@ DATABASES = {
         'NAME': 'rubber_db',
         'USER': 'postgres',
         'PASSWORD': 'Ashish2005#',
-        'HOST': 'localhost',
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': '5432',
     }
 }
