@@ -573,9 +573,9 @@ def block_create(request):
             return render(request, 'block_create.html')
 
         # ── Spatial overlap prevention (PostGIS) ──
-        # Check if the new polygon intersects any existing block owned by this manager
+        # Check if the new polygon intersects ANY existing block in the database
+        # (The database ExclusionConstraint applies globally)
         overlapping_blocks = Block.objects.filter(
-            manager=request.user,
             boundary__isnull=False,
             boundary__intersects=boundary
         )
@@ -603,15 +603,24 @@ def block_create(request):
                 'overlap_geojson': json.dumps(overlap_list),
             })
 
-        Block.objects.create(
-            name=name,
-            area=area,
-            location=location,
-            number_of_trees=trees or 0,
-            boundary=boundary,
-            area_sq_meters=float(area_sq_meters) if area_sq_meters else None,
-            manager=request.user
-        )
+        from django.db import IntegrityError
+        try:
+            Block.objects.create(
+                name=name,
+                area=area,
+                location=location,
+                number_of_trees=trees or 0,
+                boundary=boundary,
+                area_sq_meters=float(area_sq_meters) if area_sq_meters else None,
+                manager=request.user
+            )
+        except IntegrityError:
+            error_msg = 'Database error: The drawn boundary may overlap with an existing block in the system.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'error', 'message': error_msg}, status=409)
+            
+            messages.error(request, error_msg)
+            return render(request, 'block_create.html')
 
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'status': 'success', 'message': f'Block "{name}" created with boundary!'})
