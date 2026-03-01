@@ -176,12 +176,13 @@ def manager_dashboard(request):
         date=today, tapper__tapper_profile__created_by=request.user
     ).select_related('tapper', 'block')
 
-    # Fetch Weather Data based on a representative block
-    weather_data = None
+    # Fetch Weather Data based on a representative block (fallback to unavailable if no boundary)
     rep_block = my_blocks.exclude(boundary__isnull=True).first()
     if rep_block and rep_block.boundary:
         centroid = rep_block.boundary.centroid
         weather_data = get_weather_for_coordinates(centroid.y, centroid.x)
+    else:
+        weather_data = get_weather_for_coordinates(None, None)
 
     # Risk Monitoring / Incident KPIs
     open_incidents = IncidentReport.objects.filter(block__in=my_blocks, status__in=['OPEN', 'IN_PROGRESS']).select_related('tapper', 'block')
