@@ -1,14 +1,39 @@
 version: '3.8'
 
 services:
-  web:
-    build: .
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 rubber_system.wsgi:application
+  db:
+    image: postgis/postgis:15-3.3
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rubber_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Ashish2005#
     volumes:
-      - .:/app
-    ports:
-      - "8000:8000"
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    image: ashishmon/rubberplantation:latest
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      - DB_HOST=host.docker.internal
+      - DB_HOST=db
+    depends_on:
+      - db
+    volumes:
+      - staticfiles:/app/staticfiles
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - staticfiles:/app/staticfiles
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  staticfiles:
