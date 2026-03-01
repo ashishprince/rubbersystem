@@ -142,11 +142,11 @@ def _scrape_rubber_price():
 
             text = response.text
 
-            # Pattern 1: look for RSS4 followed by a price like 170.50 or 170
+            # Pattern 1: look for RSS4 followed by a price like 170.50
             patterns = [
-                r'RSS[\s\-]?4[\s\S]{0,100}?(\d{3,4}(?:\.\d{1,2})?)',
-                r'RSS4[\s\S]{0,50}?₹?\s*(\d{3,4}(?:\.\d{1,2})?)',
-                r'Ribbed\s+Smoked\s+Sheet[\s\S]{0,200}?(\d{3,4}(?:\.\d{1,2})?)',
+                r'RSS[\s\-]?4[\s\S]{0,150}?(\d{3,4}\.\d{2})',
+                r'RSS4[\s\S]{0,100}?₹?\s*(\d{3,4}\.\d{2})',
+                r'Ribbed\s+Smoked\s+Sheet[\s\S]{0,200}?(\d{3,4}\.\d{2})',
             ]
 
             for pattern in patterns:
@@ -156,6 +156,7 @@ def _scrape_rubber_price():
                     # Sanity check: rubber price should be between 100-500 ₹/kg
                     if 100 <= price <= 500:
                         return price
+
 
         except requests.exceptions.Timeout:
             logger.warning(f"MarketPriceService: Timeout fetching {url}")

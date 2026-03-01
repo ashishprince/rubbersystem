@@ -63,6 +63,134 @@
     </div>
 </div>
 
+<!-- Rubber Market Price Card -->
+<div class="card border-0 shadow-sm mb-4 fade-in" style="border-radius: 12px; overflow: hidden;" id="market-price-card">
+    <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+            <!-- Left: Price Info -->
+            <div class="d-flex align-items-center gap-4">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 60px; height: 60px; background-color: rgba(27, 94, 32, 0.1); flex-shrink:0;">
+                    <i class="bi bi-graph-up-arrow text-success fs-2"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">
+                        Rubber Market Price &bull; RSS4 Grade
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span id="mp-price" class="fw-bold text-dark" style="font-size: 1.8rem;">
+                            {% if market_price_data.price %}
+                            ₹{{ market_price_data.price }} <span class="fs-6 text-muted fw-normal">/ kg</span>
+                            {% else %}
+                            <span class="text-muted fs-5">--</span>
+                            {% endif %}
+                        </span>
+                        <span id="mp-status-badge"
+                            class="badge rounded-pill px-3 py-2
+                            {% if market_price_data.status == 'live' %}bg-success{% elif market_price_data.status == 'cached' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                            {% if market_price_data.status == 'live' %}
+                            <i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i> Live
+                            {% elif market_price_data.status == 'cached' %}
+                            <i class="bi bi-clock-history me-1"></i> Cached
+                            {% else %}
+                            <i class="bi bi-exclamation-circle me-1"></i> Unavailable
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="text-muted small mt-1">
+                        <i class="bi bi-building me-1"></i> Source: Rubber Board India &nbsp;&bull;&nbsp;
+                        <i class="bi bi-clock me-1"></i>
+                        <span id="mp-updated">
+                            {% if market_price_data.fetched_at %}
+                            {{ market_price_data.fetched_at|date:"d M Y, g:i A" }}
+                            {% else %}
+                            Not fetched yet
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if market_price_data.message %}
+                    <div class="text-warning small mt-1">
+                        <i class="bi bi-info-circle me-1"></i> {{ market_price_data.message }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Right: Fetch Button -->
+            <div>
+                <button id="mp-fetch-btn" class="btn btn-outline-success" onclick="fetchMarketPrice()"
+                    title="Fetch latest RSS4 price from Rubber Board India">
+                    <i class="bi bi-arrow-clockwise me-2" id="mp-fetch-icon"></i>
+                    Fetch Latest Market Price
+                </button>
+                <div id="mp-fetch-msg" class="text-muted small mt-1 text-end" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function fetchMarketPrice() {
+        const btn = document.getElementById('mp-fetch-btn');
+        const icon = document.getElementById('mp-fetch-icon');
+        const msg = document.getElementById('mp-fetch-msg');
+
+        btn.disabled = true;
+        icon.classList.add('spin-icon');
+        msg.style.display = 'none';
+
+        fetch("{% url 'fetch_market_price' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.price) {
+                    document.getElementById('mp-price').innerHTML =
+                        '₹' + parseFloat(data.price).toFixed(2) + ' <span class="fs-6 text-muted fw-normal">/ kg</span>';
+                }
+                const badge = document.getElementById('mp-status-badge');
+                if (data.status === 'live') {
+                    badge.className = 'badge rounded-pill px-3 py-2 bg-success';
+                    badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i> Live';
+                } else {
+                    badge.className = 'badge rounded-pill px-3 py-2 bg-warning text-dark';
+                    badge.innerHTML = '<i class="bi bi-clock-history me-1"></i> Cached';
+                }
+                if (data.fetched_at) {
+                    document.getElementById('mp-updated').textContent = data.fetched_at;
+                }
+                msg.style.display = 'block';
+                msg.textContent = data.success ? '✅ Updated successfully.' : '⚠️ ' + data.message;
+            })
+            .catch(() => {
+                msg.style.display = 'block';
+                msg.textContent = '⚠️ Network error. Please try again.';
+            })
+            .finally(() => {
+                btn.disabled = false;
+                icon.classList.remove('spin-icon');
+            });
+    }
+</script>
+
+<style>
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .spin-icon {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+    }
+</style>
+
 <!-- Monthly Summary Banner -->
 <div class="row mb-4 fade-in">
     <div class="col-12">

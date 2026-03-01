@@ -93,6 +93,13 @@ def admin_dashboard(request):
     # Today's Attendance
     today_attendance = Attendance.objects.filter(date=today).select_related('tapper', 'block')
 
+    # ── Market Price (auto-fetch once per day, fallback to cached) ──
+    try:
+        market_price_data = get_market_price_for_dashboard()
+    except Exception:
+        market_price_data = {'success': False, 'price': None, 'status': 'unavailable',
+                             'fetched_at': None, 'message': 'Market price service unavailable.'}
+
     context = {
         'total_blocks': total_blocks,
         'total_tappers': total_tappers,
@@ -105,6 +112,7 @@ def admin_dashboard(request):
         'today_attendance': today_attendance,
         'current_month_name': today.strftime('%B'),
         'current_year': current_year,
+        'market_price_data': market_price_data,
     }
     return render(request, 'dashboard_admin.html', context)
 
