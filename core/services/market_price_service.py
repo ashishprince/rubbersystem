@@ -117,54 +117,55 @@ def _fetch_and_save(fetch_type='AUTO'):
 
 
 def _scrape_rubber_price():
-    """
-    Attempts to extract RSS4 price from Rubber Board India.
-    Returns float or None on failure.
-    """
+    """Scrape RSS4 price from Rubber Board India."""
+    import urllib.request
+    import ssl
+    from bs4 import BeautifulSoup
+    
     urls_to_try = [
         'https://rubberboard.gov.in/public',
         'https://www.rubberboard.org.in/rubberprices',
     ]
+    
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 
     headers = {
-        'User-Agent': (
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/120.0.0.0 Safari/537.36'
-        )
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
 
+    # Try multiple URLs for redundancy
     for url in urls_to_try:
         try:
-            response = requests.get(url, headers=headers, timeout=8)
-            if response.status_code != 200:
-                continue
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as response:
+                html = response.read().decode('utf-8')
+                soup = BeautifulSoup(html, 'html.parser')
 
-            text = response.text
-
-            # Pattern 1: look for RSS4 followed by a price like 170.50
-            patterns = [
-                r'RSS[\s\-]?4[\s\S]{0,150}?(\d{3,4}\.\d{2})',
-                r'RSS4[\s\S]{0,100}?₹?\s*(\d{3,4}\.\d{2})',
-                r'Ribbed\s+Smoked\s+Sheet[\s\S]{0,200}?(\d{3,4}\.\d{2})',
-            ]
-
-            for pattern in patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    price = float(match.group(1))
-                    # Sanity check: rubber price should be between 100-500 ₹/kg
-                    if 100 <= price <= 500:
-                        return price
-
-
-        except requests.exceptions.Timeout:
-            logger.warning(f"MarketPriceService: Timeout fetching {url}")
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"MarketPriceService: Request error for {url}: {e}")
+                # Look through table rows for RSS4
+                rows = soup.find_all('tr')
+                for row in rows:
+                    cells = row.find_all('td')
+                    if len(cells) >= 3:
+                        # Typically: Grade, Kochi Price, Kottayam Price
+                        row_text = row.get_text(separator=' ', strip=True).upper()
+                        if 'RSS' in row_text and '4' in row_text:
+                            # Prioritize Kottayam or the last valid price in the row
+                            for cell in reversed(cells):
+                                cell_text = cell.get_text(strip=True).replace('₹', '').replace(',', '')
+                                try:
+                                    price = float(cell_text)
+                                    # Sanity check: Rubber price should be roughly 100-500
+                                    if 100 <= price <= 500:
+                                        return price
+                                except ValueError:
+                                    continue
         except Exception as e:
-            logger.warning(f"MarketPriceService: Parse error for {url}: {e}")
+            logger.warning(f"MarketPriceService: Failed fetching/parsing {url}: {e}")
+            continue
 
+    logger.error("MarketPriceService: Could not extract RSS4 price from sources using BS4.")
     return None
 
 
