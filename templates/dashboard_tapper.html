@@ -352,8 +352,6 @@
                                 <th class="ps-4">Month</th>
                                 <th>Attendance</th>
                                 <th>Total Latex</th>
-                                <th>Expected Yield</th>
-                                <th>Performance</th>
                                 <th class="text-end pe-4">Total Wage Received</th>
                             </tr>
                         </thead>
@@ -363,26 +361,12 @@
                                 <td class="ps-4 fw-bold text-dark">{{ record.month|date:"F Y" }}</td>
                                 <td>{{ record.attendance_days }} days</td>
                                 <td class="fw-medium text-dark">{{ record.total_latex_kg|floatformat:1 }} L</td>
-                                <td class="text-muted">{{ record.expected_yield|floatformat:1 }} L</td>
-                                <td>
-                                    {% if record.performance_percentage >= 110 %}
-                                    <span class="badge" style="background-color: #1b5e20;">Excellent</span>
-                                    {% elif record.performance_percentage >= 95 %}
-                                    <span class="badge bg-success">Good</span>
-                                    {% elif record.performance_percentage >= 80 %}
-                                    <span class="badge bg-warning text-dark">Moderate</span>
-                                    {% else %}
-                                    <span class="badge bg-danger">Needs Review</span>
-                                    {% endif %}
-                                    <span class="ms-1 small text-muted">({{ record.performance_percentage|floatformat:1
-                                        }}%)</span>
-                                </td>
                                 <td class="text-end pe-4 fs-5 fw-bold text-primary-green">₹{{
                                     record.total_wage|floatformat:2 }}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">
+                                <td colspan="4" class="text-center py-5 text-muted">
                                     <i class="bi bi-cash-stack fs-3 d-block mb-2 opacity-50"></i>
                                     No wage records available yet.
                                 </td>

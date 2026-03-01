@@ -75,13 +75,13 @@ def generate_payroll_for_month(month_date: date):
                 if assignment and assignment.block:
                     minimum_daily_yield = assignment.block.minimum_daily_yield
 
-                # Step 4: Compute Wages
+                # Step 4: Compute Wages (Simplified to Attendance Only)
                 daily_rate = float(profile.wage) if profile.wage else 500.0
-                per_kg_rate = 12.0  # Fixed based on requirements
+                per_kg_rate = 0.0  # Removed performance/production wage
                 
                 base_wage = attendance_days * daily_rate
-                production_wage = total_latex * per_kg_rate
-                total_wage = base_wage + production_wage  # Wages must NOT be reduced based on performance
+                production_wage = 0.0
+                total_wage = base_wage  # Purely based on attendance
 
                 # Step 5: Compute Performance (Monitoring Only)
                 expected_yield = attendance_days * minimum_daily_yield

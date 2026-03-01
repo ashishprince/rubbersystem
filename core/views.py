@@ -1064,6 +1064,42 @@ def reports(request):
 
 
 # ─────────────────────────────────────────────
+# EDIT WAGE (Manager/Admin Only)
+# ─────────────────────────────────────────────
+
+@login_required
+def edit_wage_record(request, record_id):
+    """API endpoint to manually override a tapper's total wage."""
+    role = get_user_role(request.user)
+    if role not in ['Manager', 'Admin']:
+        return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        new_wage = float(data.get('new_wage', 0))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid wage amount'}, status=400)
+
+    try:
+        record = WageRecord.objects.get(id=record_id)
+        record.total_wage = new_wage
+        record.save()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Wage updated successfully',
+            'new_wage': record.total_wage
+        })
+    except WageRecord.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Wage record not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+# ─────────────────────────────────────────────
 # CREATE MANAGER (Admin Only)
 # ─────────────────────────────────────────────
 

@@ -40,6 +40,7 @@ urlpatterns = [
 
     # Payroll
     path('payroll/generate/', views.generate_payroll, name='generate_payroll'),
+    path('payroll/edit/<int:record_id>/', views.edit_wage_record, name='edit_wage_record'),
 
     # Attendance
     path('attendance/mark/', views.mark_attendance, name='mark_attendance'),
