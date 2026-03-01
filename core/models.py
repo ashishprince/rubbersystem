@@ -206,3 +206,24 @@ class WageRecord(models.Model):
 
     def __str__(self):
         return f"WageRecord: {self.tapper.username} - {self.month.strftime('%Y-%m')} - ₹{self.total_wage}"
+
+
+class MarketPrice(models.Model):
+    """Stores rubber market price (RSS4 grade) fetched from Rubber Board India."""
+
+    FETCH_TYPE_CHOICES = [
+        ('AUTO', 'Automatic'),
+        ('MANUAL', 'Manual'),
+    ]
+
+    price_per_kg = models.FloatField(help_text="RSS4 rubber price in ₹ per kg")
+    source = models.CharField(max_length=200, default="Rubber Board India")
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    fetch_type = models.CharField(max_length=10, choices=FETCH_TYPE_CHOICES, default='AUTO')
+    is_active = models.BooleanField(default=True, help_text="Only the latest record is active")
+
+    class Meta:
+        ordering = ['-fetched_at']
+
+    def __str__(self):
+        return f"₹{self.price_per_kg}/kg ({self.fetch_type}) at {self.fetched_at.strftime('%Y-%m-%d %H:%M')}"

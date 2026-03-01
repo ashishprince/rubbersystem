@@ -53,4 +53,7 @@ urlpatterns = [
 
     # My Profile
     path('profile/', views.my_profile, name='my_profile'),
+
+    # Market Price (Manager only)
+    path('market-price/fetch/', views.fetch_market_price, name='fetch_market_price'),
 ]

@@ -8,13 +8,14 @@ from django.contrib.gis.db import models
 from django.db.models import Sum, Count, F, DecimalField, ExpressionWrapper
 from django.contrib.gis.geos import GEOSGeometry, Point
 from django.db import IntegrityError, connection
-from .models import Block, TapperProfile, TapperAssignment, LatexCollection, ManagerProfile, Attendance, IncidentReport, WageRecord
+from .models import Block, TapperProfile, TapperAssignment, LatexCollection, ManagerProfile, Attendance, IncidentReport, WageRecord, MarketPrice
 from django.contrib.gis.measure import D
 from .decorators import role_required, get_user_role
 from django.http import JsonResponse
 import datetime
 import json
 from core.services.weather_service import get_weather_for_coordinates
+from core.services.market_price_service import get_market_price_for_dashboard, manual_fetch as manual_market_fetch
 
 
 # ─────────────────────────────────────────────
@@ -252,6 +253,13 @@ def manager_dashboard(request):
             
     productivity_blocks_json = json.dumps(productivity_blocks)
 
+    # ── Market Price (auto-fetch once per day, fallback to cached) ──
+    try:
+        market_price_data = get_market_price_for_dashboard()
+    except Exception:
+        market_price_data = {'success': False, 'price': None, 'status': 'unavailable',
+                             'fetched_at': None, 'message': 'Market price service unavailable.'}
+
     context = {
         'active_assignments': active_assignments,
         'unassigned_tappers': unassigned_tappers,
@@ -268,6 +276,7 @@ def manager_dashboard(request):
         'high_severity_count': high_severity_count,
         'resolved_this_week': resolved_this_week,
         'incidents_json': incidents_json,
+        'market_price_data': market_price_data,
         'wage_records': wage_records,
         'selected_month_str': first_day_of_selected_month.strftime('%Y-%m'),
         'total_wage_liability': round(total_wage_liability, 2),
@@ -278,9 +287,37 @@ def manager_dashboard(request):
     }
     return render(request, 'dashboard_manager.html', context)
 
+
+# ─────────────────────────────────────────────
+# MARKET PRICE - MANUAL FETCH ENDPOINT
+# ─────────────────────────────────────────────
+
+@login_required
+@role_required('Manager')
+def fetch_market_price(request):
+    """
+    Manager-only AJAX endpoint to manually refresh the rubber market price.
+    POST: triggers a live fetch from Rubber Board India.
+    Returns JSON.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'POST required.'}, status=405)
+
+    result = manual_market_fetch()
+
+    return JsonResponse({
+        'success': result['success'],
+        'price': result['price'],
+        'status': result['status'],
+        'fetched_at': result['fetched_at'].strftime('%d %b %Y, %I:%M %p') if result['fetched_at'] else None,
+        'message': result['message'],
+    })
+
+
 @login_required
 @role_required('Admin', 'Manager')
 def generate_payroll(request):
+
     """Generates payroll for a specific month for active tappers."""
     if request.method == 'POST':
         month_str = request.POST.get('month')
