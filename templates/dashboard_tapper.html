@@ -528,62 +528,8 @@
             },
             function (error) {
                 let msg = 'Unable to pinpoint your precise location.';
-                if (error.code === error.PERMISSION_DENIED || window.location.protocol !== 'https:') {
-                    msg = 'Browser blocked GPS access (HTTPS required). Using fallback block coordinates for demo purposes. Please wait...';
-                    showAlert('info', msg);
-
-                    // Fallback: Send the centroid of the assigned block to pass validation
-                    let fallbackLat = 9.93;
-                    let fallbackLng = 76.26;
-
-                    if (boundaryData) {
-                        try {
-                            const fallbackPolygon = L.geoJSON(boundaryData);
-                            const centroid = fallbackPolygon.getBounds().getCenter();
-                            fallbackLat = centroid.lat;
-                            fallbackLng = centroid.lng;
-                        } catch (e) { }
-                    }
-
-                    fetch('{% url "mark_attendance" %}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify({
-                            latitude: fallbackLat,
-                            longitude: fallbackLng,
-                            accuracy: 10 // perfect accuracy for fallback
-                        })
-                    })
-                        .then(response => response.json().then(data => ({ status: response.status, data: data })))
-                        .then(result => {
-                            const data = result.data;
-                            const status = result.status;
-                            btn.classList.remove('opacity-75');
-                            if (status === 200) {
-                                showAlert('success', "Fallback successful: " + data.message);
-                                btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Attendance Logged';
-                                btn.classList.replace('btn-primary-green', 'btn-secondary');
-                            } else if (status === 409) {
-                                showAlert('info', data.message);
-                                btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Already Logged';
-                                btn.classList.replace('btn-primary-green', 'btn-secondary');
-                            } else {
-                                showAlert('warning', `Fallback failed: ${data.message}`);
-                                btn.innerHTML = originalText;
-                                btn.disabled = false;
-                            }
-                        })
-                        .catch(err => {
-                            showAlert('danger', 'Network connection error during fallback. Please try again.');
-                            btn.innerHTML = originalText;
-                            btn.disabled = false;
-                            btn.classList.remove('opacity-75');
-                        });
-                    return;
+                if (error.code === error.PERMISSION_DENIED) {
+                    msg = 'Location access disabled. Please grant GPS permissions in your browser.';
                 }
                 showAlert('warning', msg);
                 btn.innerHTML = originalText;
