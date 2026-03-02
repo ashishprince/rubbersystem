@@ -38,6 +38,9 @@ jobs:
             # Create network if not exists
             docker network create rubber-net 2>/dev/null || true
 
+            # Clean up old docker unused data to free disk space (to prevent 'no space left on device')
+            docker system prune -af --volumes 2>/dev/null || true
+
             # Pull latest image
             docker pull ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
 
