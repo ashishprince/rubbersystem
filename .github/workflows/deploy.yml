@@ -35,6 +35,11 @@ jobs:
           script: |
             set -e
             
+            # Print current disk space usage
+            echo "--- CURRENT DISK SPACE ---"
+            df -h /
+            echo "--------------------------"
+            
             # Create network if not exists
             docker network create rubber-net 2>/dev/null || true
 
