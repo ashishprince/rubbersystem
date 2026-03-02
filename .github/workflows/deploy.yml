@@ -107,3 +107,6 @@ jobs:
             # Run migrations
             sleep 5
             docker exec rubberplantation-web python manage.py migrate || true
+            
+            # Clear Django cache to prevent stale API messages from persisting
+            docker exec rubberplantation-web python -c "from django.core.cache import cache; cache.clear()" || true
