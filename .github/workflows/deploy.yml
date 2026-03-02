@@ -33,15 +33,21 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            set -e
+            
             # Create network if not exists
             docker network create rubber-net 2>/dev/null || true
 
             # Pull latest image
             docker pull ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
 
-            # Stop and remove old web + nginx containers (keep db to preserve data)
+            # Forcefully stop and remove all related containers
             docker stop rubberplantation-web rubberapp-nginx 2>/dev/null || true
-            docker rm rubberplantation-web rubberapp-nginx 2>/dev/null || true
+            docker rm -f rubberplantation-web rubberapp-nginx 2>/dev/null || true
+            
+            # Free up port 80 just in case another old nginx container is holding it
+            docker ps -q -f "publish=80" | xargs -r docker stop
+            docker ps -a -q -f "publish=80" | xargs -r docker rm
 
             # Start DB if not already running
             docker run -d \
