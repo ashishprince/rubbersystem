@@ -176,13 +176,14 @@ def manager_dashboard(request):
         date=today, tapper__tapper_profile__created_by=request.user
     ).select_related('tapper', 'block')
 
-    # Fetch Weather Data based on a representative block (fallback to unavailable if no boundary)
+    # Fetch Weather Data based on a representative block (fallback to Kerala default if no boundary)
     rep_block = my_blocks.exclude(boundary__isnull=True).first()
     if rep_block and rep_block.boundary:
         centroid = rep_block.boundary.centroid
         weather_data = get_weather_for_coordinates(centroid.y, centroid.x)
     else:
-        weather_data = get_weather_for_coordinates(None, None)
+        # Default: Kottayam district, Kerala – rubber plantation heartland
+        weather_data = get_weather_for_coordinates(9.5916, 76.5222)
 
     # Risk Monitoring / Incident KPIs
     open_incidents = IncidentReport.objects.filter(block__in=my_blocks, status__in=['OPEN', 'IN_PROGRESS']).select_related('tapper', 'block')
@@ -401,6 +402,21 @@ def tapper_dashboard(request):
         block_boundary_json = assigned_block.boundary.geojson
         centroid = assigned_block.boundary.centroid
         weather_data = get_weather_for_coordinates(centroid.y, centroid.x)
+    else:
+        # No boundary on assigned block – try to get weather from any block owned by the manager,
+        # or fall back to a default plantation location in Kerala.
+        fallback_lat, fallback_lng = None, None
+        if profile.created_by:
+            fallback_block = Block.objects.filter(
+                manager=profile.created_by, boundary__isnull=False
+            ).first()
+            if fallback_block:
+                c = fallback_block.boundary.centroid
+                fallback_lat, fallback_lng = c.y, c.x
+        if fallback_lat is None:
+            # Default: Kottayam district, Kerala – rubber plantation heartland
+            fallback_lat, fallback_lng = 9.5916, 76.5222
+        weather_data = get_weather_for_coordinates(fallback_lat, fallback_lng)
 
     # Fetch tapper's WageRecords
     wage_records = WageRecord.objects.filter(tapper=request.user).order_by('-month')

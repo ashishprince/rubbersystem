@@ -24,7 +24,7 @@ def get_weather_for_coordinates(lat, lng):
     api_key = getattr(settings, 'WEATHER_API_KEY', None)
     if not api_key or api_key == 'demo_key_provide_one_in_env':
         logger.warning("WEATHER_API_KEY is not set or is using the default demo key.")
-        return _get_default_weather_data("API Key not configured")
+        return _get_default_weather_data("Set WEATHER_API_KEY in .env to enable live weather")
 
     try:
         # OpenWeatherMap Current Weather Data API

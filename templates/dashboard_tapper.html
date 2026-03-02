@@ -357,13 +357,15 @@
                         </thead>
                         <tbody>
                             {% for record in wage_records %}
+                            <!-- prettier-ignore-start -->
                             <tr>
                                 <td class="ps-4 fw-bold text-dark">{{ record.month|date:"F Y" }}</td>
                                 <td>{{ record.attendance_days }} days</td>
                                 <td class="fw-medium text-dark">{{ record.total_latex_kg|floatformat:1 }} L</td>
-                                <td class="text-end pe-4 fs-5 fw-bold text-primary-green">₹{{
+                                <td class="text-end pe-4 fs-5 fw-bold text-primary-green">&#8377;{{
                                     record.total_wage|floatformat:2 }}</td>
                             </tr>
+                            <!-- prettier-ignore-end -->
                             {% empty %}
                             <tr>
                                 <td colspan="4" class="text-center py-5 text-muted">
