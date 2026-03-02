@@ -81,6 +81,7 @@ jobs:
               --restart unless-stopped \
               -v staticfiles:/app/staticfiles \
               --env DB_HOST=rubber-db \
+              --env WEATHER_API_KEY=${{ secrets.WEATHER_API_KEY }} \
               ${{ secrets.DOCKER_USERNAME }}/rubberplantation:latest
 
             # Wait for web to start
