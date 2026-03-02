@@ -151,14 +151,17 @@ def _scrape_rubber_price():
                         # Typically: Grade, Kochi Price, Kottayam Price
                         row_text = row.get_text(separator=' ', strip=True).upper()
                         if 'RSS' in row_text and '4' in row_text:
-                            # Prioritize Kottayam or the last valid price in the row
-                            for cell in reversed(cells):
-                                cell_text = cell.get_text(strip=True).replace('₹', '').replace(',', '')
+                            # Prioritize finding the INR price (which is per 100kg, so it will be a large number)
+                            for cell in cells:
+                                cell_text = cell.get_text(strip=True).replace('₹', '').replace(',', '').replace('$', '').strip()
                                 try:
-                                    price = float(cell_text)
-                                    # Sanity check: Rubber price should be roughly 100-500
-                                    if 100 <= price <= 500:
-                                        return price
+                                    val = float(cell_text)
+                                    # The INR price for 100kg is typically between 10,000 and 50,000
+                                    if val > 1000:
+                                        price_per_kg = val / 100.0
+                                        # Sanity check: Rubber price should be roughly 100-500 INR/kg
+                                        if 100 <= price_per_kg <= 500:
+                                            return round(price_per_kg, 2)
                                 except ValueError:
                                     continue
         except Exception as e:
