@@ -1303,3 +1303,46 @@ def api_resolve_incident(request, incident_id):
     incident.save()
 
     return JsonResponse({'success': True, 'message': 'Incident marked as resolved.'})
+
+
+# ─────────────────────────────────────────────
+# API: MONTHLY PRODUCTION TREND
+# ─────────────────────────────────────────────
+
+@login_required
+def api_monthly_production(request):
+    """
+    Returns aggregated monthly latex production data for the last 6 months.
+    - Manager: scoped to their own blocks.
+    - Admin: system-wide (all blocks).
+    JSON: { "labels": ["Oct", ...], "production": [120.5, ...] }
+    """
+    from django.db.models.functions import TruncMonth
+
+    role = get_user_role(request.user)
+    if role not in ('Manager', 'Admin'):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    today = timezone.now().date()
+    # Start of 6 months ago (first day of that month)
+    six_months_ago = (today.replace(day=1) - datetime.timedelta(days=150)).replace(day=1)
+
+    qs = LatexCollection.objects.filter(date__gte=six_months_ago)
+    if role == 'Manager':
+        qs = qs.filter(block__manager=request.user)
+
+    monthly = (
+        qs
+        .annotate(month=TruncMonth('date'))
+        .values('month')
+        .annotate(total=Sum('quantity'))
+        .order_by('month')
+    )
+
+    labels = []
+    production = []
+    for entry in monthly:
+        labels.append(entry['month'].strftime('%b %Y'))
+        production.append(round(entry['total'] or 0, 2))
+
+    return JsonResponse({'labels': labels, 'production': production})

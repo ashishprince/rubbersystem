@@ -57,4 +57,7 @@ urlpatterns = [
 
     # Market Price (Manager only)
     path('market-price/fetch/', views.fetch_market_price, name='fetch_market_price'),
+
+    # Monthly production trend API (Manager + Admin)
+    path('api/monthly-production/', views.api_monthly_production, name='api_monthly_production'),
 ]

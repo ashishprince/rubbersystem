@@ -305,35 +305,22 @@
         </div>
     </div>
 
-    <!-- Block-wise Production -->
+    <!-- Monthly Latex Production Trend -->
     <div class="col-lg-7">
         <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-bar-chart-fill me-2"></i> Block-wise Production ({{ current_month_name }})
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-graph-up-arrow me-2"></i> Monthly Latex Production Trend</span>
+                <span class="badge bg-light-green text-primary-green px-3">Last 6 Months</span>
             </div>
-            <div class="card-body">
-                {% for block in block_production %}
-                <div class="mb-4">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="fw-medium text-dark">
-                            {{ block.name }}
-                            <span class="badge bg-light-green ms-2 fw-normal">
-                                {{ block.active_tappers }} tapper{{ block.active_tappers|pluralize }}
-                            </span>
-                        </span>
-                        <span class="fw-bold text-primary-green">{{ block.monthly_total|default:"0" }} L</span>
-                    </div>
-                    <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-primary-green" role="progressbar"
-                            style="width: {{ block.percentage }}%"></div>
+            <div class="card-body d-flex flex-column justify-content-center">
+                <div id="trend-chart-container" style="position: relative; height: 260px;">
+                    <canvas id="productionTrendChart"></canvas>
+                    <div id="trend-empty-state" class="text-muted text-center d-none"
+                        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                        <i class="bi bi-bar-chart fs-2 d-block mb-2 opacity-50"></i>
+                        No production data available yet.
                     </div>
                 </div>
-                {% empty %}
-                <p class="text-muted text-center py-5">
-                    <i class="bi bi-bar-chart fs-3 d-block mb-2 opacity-50"></i>
-                    No production data this month.
-                </p>
-                {% endfor %}
             </div>
         </div>
     </div>
@@ -829,6 +816,89 @@
         } else {
             setTimeout(() => { prodMap.invalidateSize(); }, 500);
         }
+    });
+</script>
+
+<!-- Chart.js for Monthly Latex Production Trend -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch("{% url 'api_monthly_production' %}")
+            .then(r => r.json())
+            .then(data => {
+                const canvas = document.getElementById('productionTrendChart');
+                const emptyState = document.getElementById('trend-empty-state');
+
+                if (!data.labels || data.labels.length === 0) {
+                    canvas.style.display = 'none';
+                    emptyState.classList.remove('d-none');
+                    return;
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                // Gradient fill
+                const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+                gradient.addColorStop(0, 'rgba(46,125,50,0.30)');
+                gradient.addColorStop(1, 'rgba(46,125,50,0.03)');
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Latex Yield (L)',
+                            data: data.production,
+                            borderColor: '#2E7D32',
+                            backgroundColor: gradient,
+                            borderWidth: 2.5,
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: '#2E7D32',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: (items) => items[0].label,
+                                    label: (item) => ' Yield: ' + item.parsed.y + ' Litres',
+                                },
+                                backgroundColor: '#1b5e20',
+                                titleColor: '#a5d6a7',
+                                bodyColor: '#ffffff',
+                                padding: 10,
+                                cornerRadius: 8,
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#6c757d' }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0,0,0,0.05)' },
+                                ticks: { color: '#6c757d' },
+                                title: {
+                                    display: true,
+                                    text: 'Latex Yield (Litres)',
+                                    color: '#6c757d',
+                                    font: { size: 11 }
+                                }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(err => console.warn('Monthly production chart failed to load:', err));
     });
 </script>
 {% endblock %}
