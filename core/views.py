@@ -176,14 +176,8 @@ def manager_dashboard(request):
         date=today, tapper__tapper_profile__created_by=request.user
     ).select_related('tapper', 'block')
 
-    # Fetch Weather Data based on a representative block (fallback to Kerala default if no boundary)
-    rep_block = my_blocks.exclude(boundary__isnull=True).first()
-    if rep_block and rep_block.boundary:
-        centroid = rep_block.boundary.centroid
-        weather_data = get_weather_for_coordinates(centroid.y, centroid.x)
-    else:
-        # Default: Kottayam district, Kerala – rubber plantation heartland
-        weather_data = get_weather_for_coordinates(9.5916, 76.5222)
+    # Weather is now loaded asynchronously via /api/weather/ AJAX endpoint
+    # This removes the ~1-3s synchronous HTTP call from the page load path
 
     # Risk Monitoring / Incident KPIs
     open_incidents = IncidentReport.objects.filter(block__in=my_blocks, status__in=['OPEN', 'IN_PROGRESS']).select_related('tapper', 'block')
@@ -222,35 +216,59 @@ def manager_dashboard(request):
         tapper__tapper_profile__created_by=request.user
     ).select_related('tapper')
 
-    total_wage_liability = wage_records.aggregate(total=Sum('total_wage'))['total'] or 0.0
+    # Cache payroll aggregates for 5 minutes — they rarely change mid-session
+    from django.core.cache import cache
     from django.db.models import Avg
-    avg_performance = wage_records.aggregate(avg=Avg('performance_percentage'))['avg'] or 0.0
-    underperforming_count = wage_records.filter(performance_percentage__lt=80).count()
-    highest_earning = wage_records.order_by('-total_wage').first()
+    _payroll_cache_key = f'mgr_payroll_{request.user.id}_{first_day_of_selected_month}'
+    _cached = cache.get(_payroll_cache_key)
+    if _cached:
+        total_wage_liability = _cached['total_wage_liability']
+        avg_performance = _cached['avg_performance']
+        underperforming_count = _cached['underperforming_count']
+        highest_earning = _cached['highest_earning']
+    else:
+        total_wage_liability = wage_records.aggregate(total=Sum('total_wage'))['total'] or 0.0
+        avg_performance = wage_records.aggregate(avg=Avg('performance_percentage'))['avg'] or 0.0
+        underperforming_count = wage_records.filter(performance_percentage__lt=80).count()
+        highest_earning = wage_records.order_by('-total_wage').first()
+        cache.set(_payroll_cache_key, {
+            'total_wage_liability': total_wage_liability,
+            'avg_performance': avg_performance,
+            'underperforming_count': underperforming_count,
+            'highest_earning': highest_earning,
+        }, 300)  # 5 minutes
 
-    # Block Productivity Map Data
+    # Block Productivity Map Data — FIX: single bulk query instead of N+1 per-block loop
     from core.services.payroll_service import get_performance_color, get_performance_label
-    
+
+    # Get all tapper users in active assignments for this manager's blocks in one query
+    active_tapper_users = User.objects.filter(
+        tapper_profile__assignments__block__in=my_blocks,
+        tapper_profile__assignments__is_active=True,
+    ).values_list('id', 'tapper_profile__assignments__block_id')
+
+    # Build a dict: block_id -> list of user_ids
+    block_to_user_ids = {}
+    for user_id, block_id in active_tapper_users:
+        block_to_user_ids.setdefault(block_id, []).append(user_id)
+
+    # Get all wage aggregates for tappers in a single DB query (group by tapper)
+    wage_by_tapper = {}
+    for wr in wage_records:
+        wage_by_tapper[wr.tapper_id] = wr.performance_percentage
+
     productivity_blocks = []
     for block in my_blocks:
-        tapper_users = User.objects.filter(
-            tapper_profile__assignments__block=block,
-            tapper_profile__assignments__is_active=True
-        )
-        block_wages = wage_records.filter(tapper__in=tapper_users)
-        if block_wages.exists():
-            avg_perf = block_wages.aggregate(avg=Avg('performance_percentage'))['avg'] or 0.0
-            color = get_performance_color(avg_perf)
-            label = get_performance_label(avg_perf)
-        else:
-            color = '#9e9e9e' # Grey
-            label = 'N/A'
-            avg_perf = 0.0
-        
+        user_ids = block_to_user_ids.get(block.id, [])
+        perfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
+        avg_perf = sum(perfs) / len(perfs) if perfs else 0.0
+        color = get_performance_color(avg_perf) if perfs else '#9e9e9e'
+        label = get_performance_label(avg_perf) if perfs else 'N/A'
+
         block.performance_color = color
         block.performance_label = label
         block.avg_performance = round(avg_perf, 2)
-        
+
         if block.boundary:
             productivity_blocks.append({
                 'id': block.id,
@@ -260,7 +278,7 @@ def manager_dashboard(request):
                 'perf': round(avg_perf, 2),
                 'boundary': json.loads(block.boundary.geojson)
             })
-            
+
     productivity_blocks_json = json.dumps(productivity_blocks)
 
     # ── Market Price (auto-fetch once per day, fallback to cached) ──
@@ -281,7 +299,7 @@ def manager_dashboard(request):
         'today_attendance': today_attendance,
         'current_month_name': today.strftime('%B'),
         'current_year': current_year,
-        'weather_data': weather_data,
+        'weather_data': None,  # loaded asynchronously via /api/weather/
         'open_incidents': open_incidents,
         'high_severity_count': high_severity_count,
         'resolved_this_week': resolved_this_week,
@@ -1346,3 +1364,35 @@ def api_monthly_production(request):
         production.append(round(entry['total'] or 0, 2))
 
     return JsonResponse({'labels': labels, 'production': production})
+
+
+# ─────────────────────────────────────────────
+# API: ASYNC WEATHER (Manager + Admin)
+# ─────────────────────────────────────────────
+
+@login_required
+def api_weather(request):
+    """
+    AJAX endpoint for weather data. Keeps the main dashboard page load fast
+    by fetching weather asynchronously after the page renders.
+    Manager: uses their first block's centroid.
+    Admin: uses Kottayam default.
+    """
+    role = get_user_role(request.user)
+    if role not in ('Manager', 'Admin'):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    if role == 'Manager':
+        rep_block = Block.objects.filter(
+            manager=request.user
+        ).exclude(boundary__isnull=True).first()
+        if rep_block and rep_block.boundary:
+            centroid = rep_block.boundary.centroid
+            weather = get_weather_for_coordinates(centroid.y, centroid.x)
+        else:
+            weather = get_weather_for_coordinates(9.5916, 76.5222)
+    else:
+        # Admin: Kottayam, Kerala default
+        weather = get_weather_for_coordinates(9.5916, 76.5222)
+
+    return JsonResponse(weather)

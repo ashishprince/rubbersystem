@@ -146,55 +146,40 @@
     }
 </style>
 
-<!-- Weather Alert System -->
-{% if weather_data %}
-
-<div class="card border-0 shadow-sm mb-4 fade-in" style="border-radius: 12px; overflow: hidden;">
+<!-- Weather Card (loaded asynchronously to speed up page render) -->
+<div class="card border-0 shadow-sm mb-4 fade-in" style="border-radius: 12px; overflow: hidden;" id="weather-card">
     <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <div class="d-flex align-items-center gap-4">
-            <div class="weather-icon rounded-circle d-flex align-items-center justify-content-center"
-                style="width: 60px; height: 60px; background-color: rgba(27, 94, 32, 0.1);">
-                {% if 'Clear' in weather_data.condition %}
-                <i class="bi bi-sun text-warning fs-1"></i>
-                {% elif 'Rain' in weather_data.condition or 'Drizzle' in weather_data.condition %}
-                <i class="bi bi-cloud-rain text-primary fs-1"></i>
-                {% elif 'Storm' in weather_data.condition or 'Thunder' in weather_data.condition %}
-                <i class="bi bi-cloud-lightning-rain text-danger fs-1"></i>
-                {% else %}
-                <i class="bi bi-cloud text-secondary fs-1"></i>
-                {% endif %}
-            </div>
-
-            <div>
-                <h5 class="fw-bold mb-1 text-dark" style="font-size: 1.5rem;">
-                    {{ weather_data.temperature }}°C
-                </h5>
-                <p class="text-muted mb-0" style="font-size: 0.95rem;">
-                    <span>{{ weather_data.condition }}</span> &bull;
-                    <span>{{ weather_data.rain_probability }}% Rain</span> &bull;
-                    <span>{{ weather_data.humidity }}% Humidity</span>
-                </p>
+        <!-- Skeleton shown while loading -->
+        <div id="weather-skeleton" class="d-flex align-items-center gap-4 w-100">
+            <div class="rounded-circle" style="width:60px;height:60px;background:#e9ecef;flex-shrink:0;"></div>
+            <div style="flex:1;">
+                <div style="height:20px;width:100px;background:#e9ecef;border-radius:4px;margin-bottom:8px;"></div>
+                <div style="height:14px;width:200px;background:#e9ecef;border-radius:4px;"></div>
             </div>
         </div>
-
-        <div>
-            {% if weather_data.alert_level == 'normal' %}
-            <span class="badge bg-success rounded-pill px-3 py-2 fs-6 shadow-sm">
-                <i class="bi bi-check-circle me-1"></i> {{ weather_data.alert_message }}
-            </span>
-            {% elif weather_data.alert_level == 'caution' %}
-            <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fs-6 shadow-sm">
-                <i class="bi bi-exclamation-triangle me-1"></i> {{ weather_data.alert_message }}
-            </span>
-            {% elif weather_data.alert_level == 'danger' %}
-            <span class="badge bg-danger rounded-pill px-3 py-2 fs-6 shadow-sm">
-                <i class="bi bi-shield-exclamation me-1"></i> {{ weather_data.alert_message }}
-            </span>
-            {% endif %}
+        <!-- Real content injected by JS -->
+        <div id="weather-content"
+            class="d-flex align-items-center justify-content-between flex-wrap gap-3 w-100 d-none">
+            <div class="d-flex align-items-center gap-4">
+                <div id="weather-icon-wrap" class="rounded-circle d-flex align-items-center justify-content-center"
+                    style="width:60px;height:60px;background-color:rgba(27,94,32,0.1);flex-shrink:0;">
+                    <i id="weather-icon" class="bi bi-cloud text-secondary fs-1"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-1 text-dark" style="font-size:1.5rem;">
+                        <span id="weather-temp">--</span>°C
+                    </h5>
+                    <p class="text-muted mb-0" style="font-size:0.95rem;">
+                        <span id="weather-condition">--</span> &bull;
+                        <span id="weather-rain">--%</span> Rain &bull;
+                        <span id="weather-humidity">--%</span> Humidity
+                    </p>
+                </div>
+            </div>
+            <div id="weather-alert-wrap"></div>
         </div>
     </div>
 </div>
-{% endif %}
 
 <!-- Unassigned Alert -->
 {% if total_unassigned > 0 %}
@@ -900,5 +885,59 @@
             })
             .catch(err => console.warn('Monthly production chart failed to load:', err));
     });
+</script>
+
+<!-- Async Weather Loader -->
+<script>
+    (function loadWeather() {
+        fetch("{% url 'api_weather' %}")
+            .then(r => r.json())
+            .then(w => {
+                const skeleton = document.getElementById('weather-skeleton');
+                const content = document.getElementById('weather-content');
+                const icon = document.getElementById('weather-icon');
+                const alertEl = document.getElementById('weather-alert-wrap');
+
+                // Fill in values
+                document.getElementById('weather-temp').textContent = w.temperature ?? '--';
+                document.getElementById('weather-condition').textContent = w.condition ?? '--';
+                document.getElementById('weather-rain').textContent = (w.rain_probability ?? '--') + '%';
+                document.getElementById('weather-humidity').textContent = (w.humidity ?? '--') + '%';
+
+                // Choose icon
+                const cond = (w.condition || '').toLowerCase();
+                if (cond.includes('clear')) {
+                    icon.className = 'bi bi-sun text-warning fs-1';
+                } else if (cond.includes('rain') || cond.includes('drizzle')) {
+                    icon.className = 'bi bi-cloud-rain text-primary fs-1';
+                } else if (cond.includes('storm') || cond.includes('thunder')) {
+                    icon.className = 'bi bi-cloud-lightning-rain text-danger fs-1';
+                } else {
+                    icon.className = 'bi bi-cloud text-secondary fs-1';
+                }
+
+                // Alert badge
+                const level = w.alert_level || 'normal';
+                const message = w.alert_message || '';
+                const badgeClass = level === 'danger' ? 'bg-danger'
+                    : level === 'caution' ? 'bg-warning text-dark'
+                        : 'bg-success';
+                const badgeIcon = level === 'danger' ? 'bi-shield-exclamation'
+                    : level === 'caution' ? 'bi-exclamation-triangle'
+                        : 'bi-check-circle';
+                alertEl.innerHTML = `<span class="badge ${badgeClass} rounded-pill px-3 py-2 fs-6 shadow-sm">
+                <i class="bi ${badgeIcon} me-1"></i> ${message}
+            </span>`;
+
+                // Swap skeleton → real content
+                skeleton.classList.add('d-none');
+                content.classList.remove('d-none');
+            })
+            .catch(() => {
+                // On failure: show a quiet unavailable state
+                document.getElementById('weather-skeleton').innerHTML =
+                    '<span class="text-muted small"><i class="bi bi-cloud-slash me-2"></i>Weather unavailable</span>';
+            });
+    })();
 </script>
 {% endblock %}

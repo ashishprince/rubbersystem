@@ -60,4 +60,7 @@ urlpatterns = [
 
     # Monthly production trend API (Manager + Admin)
     path('api/monthly-production/', views.api_monthly_production, name='api_monthly_production'),
+
+    # Weather data API — async, avoids blocking the dashboard page load
+    path('api/weather/', views.api_weather, name='api_weather'),
 ]
