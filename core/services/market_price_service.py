@@ -27,9 +27,28 @@ def get_market_price_for_dashboard():
     )
 
     if needs_fetch:
+        from django.core.cache import cache
+        _fail_key = 'market_price_recent_fail'
+        
+        # If we recently tried and failed, don't block the dashboard trying again right away
+        if cache.get(_fail_key):
+            if latest:
+                return {
+                    'success': False,
+                    'price': latest.price_per_kg,
+                    'status': 'cached',
+                    'fetched_at': latest.fetched_at,
+                    'message': 'Live fetch temporarily unavailable. Showing last cached price.',
+                }
+            return _no_price_response()
+
         result = _fetch_and_save(fetch_type='AUTO')
         if result['success']:
             return result
+            
+        # If fetch failed, set a 10-minute cooldown cache so we don't hold up subsequent dashboard loads
+        cache.set(_fail_key, True, 600)
+
         # Fall back to last stored value if fetch failed
         if latest:
             return {

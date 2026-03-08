@@ -67,8 +67,8 @@
                             <div class="d-flex align-items-center gap-2">
                                 <div class="avatar-circle bg-light-green text-primary-green d-flex align-items-center justify-content-center"
                                     style="width: 32px; height: 32px; font-size: 0.85rem;">
-                                    {{ record.tapper.get_full_name|slice:":1"|default:record.tapper.username|slice:":1"
-                                    }}
+                                    {% if record.tapper.get_full_name %}{{ record.tapper.get_full_name|slice:":1" }}{%
+                                    else %}{{ record.tapper.username|slice:":1" }}{% endif %}
                                 </div>
                                 {{ record.tapper.get_full_name|default:record.tapper.username }}
                             </div>
