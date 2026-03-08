@@ -127,67 +127,60 @@ def admin_dashboard(request):
 @login_required
 @role_required('Manager')
 def manager_dashboard(request):
+    from django.core.cache import cache
+    from django.db.models import Avg
+
     today = timezone.now().date()
     current_month = today.month
     current_year = today.year
 
     # Scope to this manager's data
-    my_blocks = Block.objects.filter(manager=request.user)
-    my_tappers = TapperProfile.objects.filter(created_by=request.user, active=True)
+    my_blocks = list(Block.objects.filter(manager=request.user))
+    my_block_ids = [b.id for b in my_blocks]
 
-    active_assignments = TapperAssignment.objects.filter(
-        is_active=True, tapper__created_by=request.user
-    ).select_related('tapper__user', 'block')
-    unassigned_tappers = my_tappers.exclude(assignments__is_active=True)
+    # Fetch all tap per profiles once — reused for assignments + counts
+    my_tappers = list(TapperProfile.objects.filter(created_by=request.user, active=True))
+    my_tapper_ids = [t.id for t in my_tappers]
 
-    today_latex = LatexCollection.objects.filter(
-        date=today, block__manager=request.user
-    ).aggregate(total=Sum('quantity'))['total'] or 0
-    monthly_latex = LatexCollection.objects.filter(
-        date__month=current_month, date__year=current_year,
+    active_assignments = list(
+        TapperAssignment.objects.filter(
+            is_active=True, tapper__created_by=request.user
+        ).select_related('tapper__user', 'block')
+    )
+    assigned_tapper_ids = {a.tapper_id for a in active_assignments}
+    unassigned_tappers = [t for t in my_tappers if t.id not in assigned_tapper_ids]
+
+    # Two aggregates in ONE query using a single DB call
+    latex_agg = LatexCollection.objects.filter(
         block__manager=request.user
-    ).aggregate(total=Sum('quantity'))['total'] or 0
+    ).aggregate(
+        today_total=Sum('quantity', filter=models.Q(date=today)),
+        month_total=Sum('quantity', filter=models.Q(
+            date__month=current_month, date__year=current_year
+        ))
+    )
+    today_latex   = round(latex_agg['today_total']  or 0, 2)
+    monthly_latex = round(latex_agg['month_total']  or 0, 2)
 
-    # Block-wise production this month (only my blocks)
-    block_production = my_blocks.annotate(
-        monthly_total=Sum(
-            'collections__quantity',
-            filter=models.Q(
-                collections__date__month=current_month,
-                collections__date__year=current_year
-            )
-        ),
-        active_tappers=Count(
-            'assignments',
-            filter=models.Q(assignments__is_active=True)
-        )
-    ).order_by('-monthly_total')
+    # Today's Attendance
+    today_attendance = list(
+        Attendance.objects.filter(
+            date=today, tapper__tapper_profile__created_by=request.user
+        ).select_related('tapper', 'block')
+    )
 
-    max_block_total = 1
-    if block_production:
-        vals = [b.monthly_total or 0 for b in block_production]
-        if vals and max(vals) > 0:
-            max_block_total = max(vals)
-    for b in block_production:
-        b.percentage = int(((b.monthly_total or 0) / max_block_total) * 100) if max_block_total > 0 else 0
-
-    # Today's Attendance for this manager's tappers
-    today_attendance = Attendance.objects.filter(
-        date=today, tapper__tapper_profile__created_by=request.user
-    ).select_related('tapper', 'block')
-
-    # Weather is now loaded asynchronously via /api/weather/ AJAX endpoint
-    # This removes the ~1-3s synchronous HTTP call from the page load path
-
-    # Risk Monitoring / Incident KPIs
-    open_incidents = IncidentReport.objects.filter(block__in=my_blocks, status__in=['OPEN', 'IN_PROGRESS']).select_related('tapper', 'block')
-    high_severity_count = open_incidents.filter(severity='HIGH').count()
+    # Incident KPIs — two aggregates from one queryset evaluation
+    open_incidents = list(
+        IncidentReport.objects.filter(
+            block_id__in=my_block_ids, status__in=['OPEN', 'IN_PROGRESS']
+        ).select_related('tapper', 'block')
+    )
+    high_severity_count = sum(1 for i in open_incidents if i.severity == 'HIGH')
     start_of_week = today - datetime.timedelta(days=today.weekday())
     resolved_this_week = IncidentReport.objects.filter(
-        block__in=my_blocks, status='RESOLVED', resolved_at__gte=start_of_week
+        block_id__in=my_block_ids, status='RESOLVED', resolved_at__gte=start_of_week
     ).count()
 
-    import json
     incidents_json = json.dumps([{
         'id': inc.id,
         'type': inc.get_incident_type_display(),
@@ -200,88 +193,81 @@ def manager_dashboard(request):
         'date': inc.created_at.strftime('%b %d, %Y %I:%M %p')
     } for inc in open_incidents])
 
-    # ── Payroll & Performance Section ──
-    # Default to current month, but allow querying past months for payroll
+    # Payroll section
     selected_month_str = request.GET.get('month', today.strftime('%Y-%m'))
     try:
         selected_month_date = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
     except ValueError:
         selected_month_date = datetime.date(current_year, current_month, 1)
-
-    # Convert to first day of month to match WageRecord.month
     first_day_of_selected_month = datetime.date(selected_month_date.year, selected_month_date.month, 1)
 
-    wage_records = WageRecord.objects.filter(
-        month=first_day_of_selected_month,
-        tapper__tapper_profile__created_by=request.user
-    ).select_related('tapper')
+    wage_records = list(
+        WageRecord.objects.filter(
+            month=first_day_of_selected_month,
+            tapper__tapper_profile__created_by=request.user
+        ).select_related('tapper')
+    )
 
-    # Cache payroll aggregates for 5 minutes — they rarely change mid-session
-    from django.core.cache import cache
-    from django.db.models import Avg
+    # Payroll aggregates — cached 5 minutes
     _payroll_cache_key = f'mgr_payroll_{request.user.id}_{first_day_of_selected_month}'
     _cached = cache.get(_payroll_cache_key)
     if _cached:
-        total_wage_liability = _cached['total_wage_liability']
-        avg_performance = _cached['avg_performance']
+        total_wage_liability  = _cached['total_wage_liability']
+        avg_performance       = _cached['avg_performance']
         underperforming_count = _cached['underperforming_count']
-        highest_earning = _cached['highest_earning']
+        highest_earning       = _cached['highest_earning']
     else:
-        total_wage_liability = wage_records.aggregate(total=Sum('total_wage'))['total'] or 0.0
-        avg_performance = wage_records.aggregate(avg=Avg('performance_percentage'))['avg'] or 0.0
-        underperforming_count = wage_records.filter(performance_percentage__lt=80).count()
-        highest_earning = wage_records.order_by('-total_wage').first()
+        total_wage_liability  = sum(w.total_wage for w in wage_records)
+        perfs = [w.performance_percentage for w in wage_records]
+        avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
+        underperforming_count = sum(1 for p in perfs if p < 80)
+        highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
         cache.set(_payroll_cache_key, {
             'total_wage_liability': total_wage_liability,
             'avg_performance': avg_performance,
             'underperforming_count': underperforming_count,
             'highest_earning': highest_earning,
-        }, 300)  # 5 minutes
+        }, 300)
 
-    # Block Productivity Map Data — FIX: single bulk query instead of N+1 per-block loop
+    # Productivity map — built from in-memory wage_records (no extra DB queries)
     from core.services.payroll_service import get_performance_color, get_performance_label
+    wage_by_tapper = {w.tapper_id: w.performance_percentage for w in wage_records}
 
-    # Get all tapper users in active assignments for this manager's blocks in one query
     active_tapper_users = User.objects.filter(
-        tapper_profile__assignments__block__in=my_blocks,
+        tapper_profile__assignments__block_id__in=my_block_ids,
         tapper_profile__assignments__is_active=True,
     ).values_list('id', 'tapper_profile__assignments__block_id')
-
-    # Build a dict: block_id -> list of user_ids
     block_to_user_ids = {}
     for user_id, block_id in active_tapper_users:
         block_to_user_ids.setdefault(block_id, []).append(user_id)
 
-    # Get all wage aggregates for tappers in a single DB query (group by tapper)
-    wage_by_tapper = {}
-    for wr in wage_records:
-        wage_by_tapper[wr.tapper_id] = wr.performance_percentage
+    # NOTE: GeoJSON serialization is now done lazily via /api/weather/ (cached)
+    # Productivity blocks JSON is cached per manager because block.boundary.geojson
+    # requires PostGIS format conversion which is expensive
+    _prod_cache_key = f'mgr_prod_blocks_{request.user.id}'
+    productivity_blocks_json = cache.get(_prod_cache_key)
+    if not productivity_blocks_json:
+        productivity_blocks = []
+        for block in my_blocks:
+            user_ids = block_to_user_ids.get(block.id, [])
+            perfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
+            avg_perf = sum(perfs) / len(perfs) if perfs else 0.0
+            color = get_performance_color(avg_perf) if perfs else '#9e9e9e'
+            label = get_performance_label(avg_perf) if perfs else 'N/A'
+            block.performance_color = color
+            block.performance_label = label
+            block.avg_performance   = round(avg_perf, 2)
+            if block.boundary:
+                productivity_blocks.append({
+                    'id': block.id, 'name': block.name,
+                    'color': color, 'label': label,
+                    'perf': round(avg_perf, 2),
+                    'boundary': json.loads(block.boundary.geojson)
+                })
+        productivity_blocks_json = json.dumps(productivity_blocks)
+        cache.set(_prod_cache_key, productivity_blocks_json, 600)  # 10 minutes
 
-    productivity_blocks = []
-    for block in my_blocks:
-        user_ids = block_to_user_ids.get(block.id, [])
-        perfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
-        avg_perf = sum(perfs) / len(perfs) if perfs else 0.0
-        color = get_performance_color(avg_perf) if perfs else '#9e9e9e'
-        label = get_performance_label(avg_perf) if perfs else 'N/A'
-
-        block.performance_color = color
-        block.performance_label = label
-        block.avg_performance = round(avg_perf, 2)
-
-        if block.boundary:
-            productivity_blocks.append({
-                'id': block.id,
-                'name': block.name,
-                'color': color,
-                'label': label,
-                'perf': round(avg_perf, 2),
-                'boundary': json.loads(block.boundary.geojson)
-            })
-
-    productivity_blocks_json = json.dumps(productivity_blocks)
-
-    # ── Market Price (auto-fetch once per day, fallback to cached) ──
+    # Market Price — served from DB cache (no HTTP call unless first load of day)
     try:
         market_price_data = get_market_price_for_dashboard()
     except Exception:
@@ -291,15 +277,15 @@ def manager_dashboard(request):
     context = {
         'active_assignments': active_assignments,
         'unassigned_tappers': unassigned_tappers,
-        'today_latex': round(today_latex, 2),
-        'monthly_latex': round(monthly_latex, 2),
-        'block_production': block_production,
-        'total_assigned': active_assignments.count(),
-        'total_unassigned': unassigned_tappers.count(),
+        'today_latex': today_latex,
+        'monthly_latex': monthly_latex,
+        'block_production': [],          # No longer used — chart loads via API
+        'total_assigned': len(active_assignments),
+        'total_unassigned': len(unassigned_tappers),
         'today_attendance': today_attendance,
         'current_month_name': today.strftime('%B'),
         'current_year': current_year,
-        'weather_data': None,  # loaded asynchronously via /api/weather/
+        'weather_data': None,            # Loaded asynchronously via /api/weather/
         'open_incidents': open_incidents,
         'high_severity_count': high_severity_count,
         'resolved_this_week': resolved_this_week,
