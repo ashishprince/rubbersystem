@@ -100,6 +100,21 @@ DATABASES = {
         'PASSWORD': 'Ashish2005#',
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': '5432',
+        # Keep DB connections alive for 60s across requests (avoids per-request TCP handshake)
+        'CONN_MAX_AGE': 60,
+    }
+}
+
+
+# Cache — FileBasedCache is shared across all Gunicorn workers (unlike LocMemCache)
+# This is the most impactful caching improvement for a multi-worker containerized setup.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': '/tmp/django_cache',
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+        }
     }
 }
 

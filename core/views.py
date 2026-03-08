@@ -134,13 +134,25 @@ def manager_dashboard(request):
     current_month = today.month
     current_year = today.year
 
-    # Scope to this manager's data
+    selected_month_str = request.GET.get('month', today.strftime('%Y-%m'))
+    try:
+        selected_month_date = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
+    except ValueError:
+        selected_month_date = datetime.date(current_year, current_month, 1)
+    first_day_of_selected_month = datetime.date(selected_month_date.year, selected_month_date.month, 1)
+
+    # ── Full-context cache: 90 seconds per manager per month ──
+    # FileBasedCache is shared across Gunicorn workers (unlike LocMemCache)
+    _ctx_key = f'mgr_dash_{request.user.id}_{today}_{first_day_of_selected_month}'
+    _cached_ctx = cache.get(_ctx_key)
+    if _cached_ctx:
+        return render(request, 'dashboard_manager.html', _cached_ctx)
+
+    # ── Cache MISS: compute everything ──
     my_blocks = list(Block.objects.filter(manager=request.user))
     my_block_ids = [b.id for b in my_blocks]
 
-    # Fetch all tap per profiles once — reused for assignments + counts
     my_tappers = list(TapperProfile.objects.filter(created_by=request.user, active=True))
-    my_tapper_ids = [t.id for t in my_tappers]
 
     active_assignments = list(
         TapperAssignment.objects.filter(
@@ -150,7 +162,7 @@ def manager_dashboard(request):
     assigned_tapper_ids = {a.tapper_id for a in active_assignments}
     unassigned_tappers = [t for t in my_tappers if t.id not in assigned_tapper_ids]
 
-    # Two aggregates in ONE query using a single DB call
+    # Two latex aggregates in ONE query
     latex_agg = LatexCollection.objects.filter(
         block__manager=request.user
     ).aggregate(
@@ -162,14 +174,12 @@ def manager_dashboard(request):
     today_latex   = round(latex_agg['today_total']  or 0, 2)
     monthly_latex = round(latex_agg['month_total']  or 0, 2)
 
-    # Today's Attendance
     today_attendance = list(
         Attendance.objects.filter(
             date=today, tapper__tapper_profile__created_by=request.user
         ).select_related('tapper', 'block')
     )
 
-    # Incident KPIs — two aggregates from one queryset evaluation
     open_incidents = list(
         IncidentReport.objects.filter(
             block_id__in=my_block_ids, status__in=['OPEN', 'IN_PROGRESS']
@@ -193,14 +203,6 @@ def manager_dashboard(request):
         'date': inc.created_at.strftime('%b %d, %Y %I:%M %p')
     } for inc in open_incidents])
 
-    # Payroll section
-    selected_month_str = request.GET.get('month', today.strftime('%Y-%m'))
-    try:
-        selected_month_date = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
-    except ValueError:
-        selected_month_date = datetime.date(current_year, current_month, 1)
-    first_day_of_selected_month = datetime.date(selected_month_date.year, selected_month_date.month, 1)
-
     wage_records = list(
         WageRecord.objects.filter(
             month=first_day_of_selected_month,
@@ -208,55 +210,35 @@ def manager_dashboard(request):
         ).select_related('tapper')
     )
 
-    # Payroll aggregates — cached 5 minutes
-    _payroll_cache_key = f'mgr_payroll_{request.user.id}_{first_day_of_selected_month}'
-    _cached = cache.get(_payroll_cache_key)
-    if _cached:
-        total_wage_liability  = _cached['total_wage_liability']
-        avg_performance       = _cached['avg_performance']
-        underperforming_count = _cached['underperforming_count']
-        highest_earning       = _cached['highest_earning']
-    else:
-        total_wage_liability  = sum(w.total_wage for w in wage_records)
-        perfs = [w.performance_percentage for w in wage_records]
-        avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
-        underperforming_count = sum(1 for p in perfs if p < 80)
-        highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
-        cache.set(_payroll_cache_key, {
-            'total_wage_liability': total_wage_liability,
-            'avg_performance': avg_performance,
-            'underperforming_count': underperforming_count,
-            'highest_earning': highest_earning,
-        }, 300)
+    # Payroll aggregates computed in-memory from already-fetched list (no extra DB)
+    total_wage_liability  = sum(float(w.total_wage) for w in wage_records)
+    perfs = [float(w.performance_percentage) for w in wage_records]
+    avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
+    underperforming_count = sum(1 for p in perfs if p < 80)
+    highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
 
-    # Productivity map — built from in-memory wage_records (no extra DB queries)
+    # Productivity map — cached separately for 10 min (PostGIS GeoJSON is expensive)
     from core.services.payroll_service import get_performance_color, get_performance_label
     wage_by_tapper = {w.tapper_id: w.performance_percentage for w in wage_records}
 
-    active_tapper_users = User.objects.filter(
-        tapper_profile__assignments__block_id__in=my_block_ids,
-        tapper_profile__assignments__is_active=True,
-    ).values_list('id', 'tapper_profile__assignments__block_id')
-    block_to_user_ids = {}
-    for user_id, block_id in active_tapper_users:
-        block_to_user_ids.setdefault(block_id, []).append(user_id)
-
-    # NOTE: GeoJSON serialization is now done lazily via /api/weather/ (cached)
-    # Productivity blocks JSON is cached per manager because block.boundary.geojson
-    # requires PostGIS format conversion which is expensive
     _prod_cache_key = f'mgr_prod_blocks_{request.user.id}'
     productivity_blocks_json = cache.get(_prod_cache_key)
     if not productivity_blocks_json:
+        active_tapper_users = User.objects.filter(
+            tapper_profile__assignments__block_id__in=my_block_ids,
+            tapper_profile__assignments__is_active=True,
+        ).values_list('id', 'tapper_profile__assignments__block_id')
+        block_to_user_ids = {}
+        for user_id, block_id in active_tapper_users:
+            block_to_user_ids.setdefault(block_id, []).append(user_id)
+
         productivity_blocks = []
         for block in my_blocks:
             user_ids = block_to_user_ids.get(block.id, [])
-            perfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
-            avg_perf = sum(perfs) / len(perfs) if perfs else 0.0
-            color = get_performance_color(avg_perf) if perfs else '#9e9e9e'
-            label = get_performance_label(avg_perf) if perfs else 'N/A'
-            block.performance_color = color
-            block.performance_label = label
-            block.avg_performance   = round(avg_perf, 2)
+            bperfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
+            avg_perf = sum(bperfs) / len(bperfs) if bperfs else 0.0
+            color = get_performance_color(avg_perf) if bperfs else '#9e9e9e'
+            label = get_performance_label(avg_perf) if bperfs else 'N/A'
             if block.boundary:
                 productivity_blocks.append({
                     'id': block.id, 'name': block.name,
@@ -265,9 +247,8 @@ def manager_dashboard(request):
                     'boundary': json.loads(block.boundary.geojson)
                 })
         productivity_blocks_json = json.dumps(productivity_blocks)
-        cache.set(_prod_cache_key, productivity_blocks_json, 600)  # 10 minutes
+        cache.set(_prod_cache_key, productivity_blocks_json, 600)
 
-    # Market Price — served from DB cache (no HTTP call unless first load of day)
     try:
         market_price_data = get_market_price_for_dashboard()
     except Exception:
@@ -279,13 +260,13 @@ def manager_dashboard(request):
         'unassigned_tappers': unassigned_tappers,
         'today_latex': today_latex,
         'monthly_latex': monthly_latex,
-        'block_production': [],          # No longer used — chart loads via API
+        'block_production': [],
         'total_assigned': len(active_assignments),
         'total_unassigned': len(unassigned_tappers),
         'today_attendance': today_attendance,
         'current_month_name': today.strftime('%B'),
         'current_year': current_year,
-        'weather_data': None,            # Loaded asynchronously via /api/weather/
+        'weather_data': None,
         'open_incidents': open_incidents,
         'high_severity_count': high_severity_count,
         'resolved_this_week': resolved_this_week,
@@ -299,12 +280,16 @@ def manager_dashboard(request):
         'highest_earning': highest_earning,
         'productivity_blocks_json': productivity_blocks_json,
     }
+
+    # Cache the full context — skip all DB queries on the next hit (90 seconds)
+    cache.set(_ctx_key, context, 90)
     return render(request, 'dashboard_manager.html', context)
 
 
 # ─────────────────────────────────────────────
 # MARKET PRICE - MANUAL FETCH ENDPOINT
 # ─────────────────────────────────────────────
+
 
 @login_required
 @role_required('Manager')
