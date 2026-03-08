@@ -141,14 +141,7 @@ def manager_dashboard(request):
         selected_month_date = datetime.date(current_year, current_month, 1)
     first_day_of_selected_month = datetime.date(selected_month_date.year, selected_month_date.month, 1)
 
-    # ── Full-context cache: 90 seconds per manager per month ──
-    # FileBasedCache is shared across Gunicorn workers (unlike LocMemCache)
-    _ctx_key = f'mgr_dash_{request.user.id}_{today}_{first_day_of_selected_month}'
-    _cached_ctx = cache.get(_ctx_key)
-    if _cached_ctx:
-        return render(request, 'dashboard_manager.html', _cached_ctx)
-
-    # ── Cache MISS: compute everything ──
+    # ── Run DB queries (FileBasedCache keeps individual expensive results shared) ──
     my_blocks = list(Block.objects.filter(manager=request.user))
     my_block_ids = [b.id for b in my_blocks]
 
@@ -210,19 +203,34 @@ def manager_dashboard(request):
         ).select_related('tapper')
     )
 
-    # Payroll aggregates computed in-memory from already-fetched list (no extra DB)
-    total_wage_liability  = sum(float(w.total_wage) for w in wage_records)
-    perfs = [float(w.performance_percentage) for w in wage_records]
-    avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
-    underperforming_count = sum(1 for p in perfs if p < 80)
-    highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
+    # Payroll aggregates — cached 5 min as plain primitives (safe to pickle)
+    _pay_key = f'mgr_pay_{request.user.id}_{first_day_of_selected_month}'
+    _cached_pay = cache.get(_pay_key)
+    if _cached_pay:
+        total_wage_liability  = _cached_pay['total_wage_liability']
+        avg_performance       = _cached_pay['avg_performance']
+        underperforming_count = _cached_pay['underperforming_count']
+        highest_earning_id    = _cached_pay['highest_earning_id']
+        highest_earning = next((w for w in wage_records if w.id == highest_earning_id), None)
+    else:
+        total_wage_liability  = sum(float(w.total_wage) for w in wage_records)
+        perfs = [float(w.performance_percentage) for w in wage_records]
+        avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
+        underperforming_count = sum(1 for p in perfs if p < 80)
+        highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
+        cache.set(_pay_key, {
+            'total_wage_liability': total_wage_liability,
+            'avg_performance': avg_performance,
+            'underperforming_count': underperforming_count,
+            'highest_earning_id': highest_earning.id if highest_earning else None,
+        }, 300)
 
-    # Productivity map — cached separately for 10 min (PostGIS GeoJSON is expensive)
+    # Productivity blocks JSON — cached as a plain string (safe to pickle)
     from core.services.payroll_service import get_performance_color, get_performance_label
     wage_by_tapper = {w.tapper_id: w.performance_percentage for w in wage_records}
 
-    _prod_cache_key = f'mgr_prod_blocks_{request.user.id}'
-    productivity_blocks_json = cache.get(_prod_cache_key)
+    _prod_key = f'mgr_prod_{request.user.id}'
+    productivity_blocks_json = cache.get(_prod_key)
     if not productivity_blocks_json:
         active_tapper_users = User.objects.filter(
             tapper_profile__assignments__block_id__in=my_block_ids,
@@ -247,7 +255,7 @@ def manager_dashboard(request):
                     'boundary': json.loads(block.boundary.geojson)
                 })
         productivity_blocks_json = json.dumps(productivity_blocks)
-        cache.set(_prod_cache_key, productivity_blocks_json, 600)
+        cache.set(_prod_key, productivity_blocks_json, 600)
 
     try:
         market_price_data = get_market_price_for_dashboard()
@@ -280,15 +288,13 @@ def manager_dashboard(request):
         'highest_earning': highest_earning,
         'productivity_blocks_json': productivity_blocks_json,
     }
-
-    # Cache the full context — skip all DB queries on the next hit (90 seconds)
-    cache.set(_ctx_key, context, 90)
     return render(request, 'dashboard_manager.html', context)
 
 
 # ─────────────────────────────────────────────
 # MARKET PRICE - MANUAL FETCH ENDPOINT
 # ─────────────────────────────────────────────
+
 
 
 @login_required
