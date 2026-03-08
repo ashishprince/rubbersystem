@@ -156,6 +156,11 @@
             // Default center if no incidents
             map.setView([10.5, 76.5], 8);
         }
+
+        // Fix Leaflet tile loading glitch in bootstrap cards/tabs
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 250);
     });
 
     function resolveIncident(id) {
