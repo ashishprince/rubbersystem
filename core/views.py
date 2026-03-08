@@ -173,95 +173,25 @@ def manager_dashboard(request):
         ).select_related('tapper', 'block')
     )
 
-    open_incidents = list(
-        IncidentReport.objects.filter(
-            block_id__in=my_block_ids, status__in=['OPEN', 'IN_PROGRESS']
+    today_attendance = list(
+        Attendance.objects.filter(
+            date=today, tapper__tapper_profile__created_by=request.user
         ).select_related('tapper', 'block')
     )
-    high_severity_count = sum(1 for i in open_incidents if i.severity == 'HIGH')
-    start_of_week = today - datetime.timedelta(days=today.weekday())
-    resolved_this_week = IncidentReport.objects.filter(
-        block_id__in=my_block_ids, status='RESOLVED', resolved_at__gte=start_of_week
-    ).count()
 
-    incidents_json = json.dumps([{
-        'id': inc.id,
-        'type': inc.get_incident_type_display(),
-        'severity': inc.severity,
-        'description': inc.description,
-        'tapper': inc.tapper.get_full_name() or inc.tapper.username,
-        'block': inc.block.name,
-        'lat': inc.location.y,
-        'lng': inc.location.x,
-        'date': inc.created_at.strftime('%b %d, %Y %I:%M %p')
-    } for inc in open_incidents])
-
-    wage_records = list(
-        WageRecord.objects.filter(
-            month=first_day_of_selected_month,
-            tapper__tapper_profile__created_by=request.user
-        ).select_related('tapper')
-    )
-
-    # Payroll aggregates — cached 5 min as plain primitives (safe to pickle)
-    _pay_key = f'mgr_pay_{request.user.id}_{first_day_of_selected_month}'
-    _cached_pay = cache.get(_pay_key)
-    if _cached_pay:
-        total_wage_liability  = _cached_pay['total_wage_liability']
-        avg_performance       = _cached_pay['avg_performance']
-        underperforming_count = _cached_pay['underperforming_count']
-        highest_earning_id    = _cached_pay['highest_earning_id']
-        highest_earning = next((w for w in wage_records if w.id == highest_earning_id), None)
-    else:
-        total_wage_liability  = sum(float(w.total_wage) for w in wage_records)
-        perfs = [float(w.performance_percentage) for w in wage_records]
-        avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
-        underperforming_count = sum(1 for p in perfs if p < 80)
-        highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
-        cache.set(_pay_key, {
-            'total_wage_liability': total_wage_liability,
-            'avg_performance': avg_performance,
-            'underperforming_count': underperforming_count,
-            'highest_earning_id': highest_earning.id if highest_earning else None,
-        }, 300)
-
-    # Productivity blocks JSON — cached as a plain string (safe to pickle)
-    from core.services.payroll_service import get_performance_color, get_performance_label
-    wage_by_tapper = {w.tapper_id: w.performance_percentage for w in wage_records}
-
-    _prod_key = f'mgr_prod_{request.user.id}'
-    productivity_blocks_json = cache.get(_prod_key)
-    if not productivity_blocks_json:
-        active_tapper_users = User.objects.filter(
-            tapper_profile__assignments__block_id__in=my_block_ids,
-            tapper_profile__assignments__is_active=True,
-        ).values_list('id', 'tapper_profile__assignments__block_id')
-        block_to_user_ids = {}
-        for user_id, block_id in active_tapper_users:
-            block_to_user_ids.setdefault(block_id, []).append(user_id)
-
-        productivity_blocks = []
-        for block in my_blocks:
-            user_ids = block_to_user_ids.get(block.id, [])
-            bperfs = [wage_by_tapper[uid] for uid in user_ids if uid in wage_by_tapper]
-            avg_perf = sum(bperfs) / len(bperfs) if bperfs else 0.0
-            color = get_performance_color(avg_perf) if bperfs else '#9e9e9e'
-            label = get_performance_label(avg_perf) if bperfs else 'N/A'
-            if block.boundary:
-                productivity_blocks.append({
-                    'id': block.id, 'name': block.name,
-                    'color': color, 'label': label,
-                    'perf': round(avg_perf, 2),
-                    'boundary': json.loads(block.boundary.geojson)
-                })
-        productivity_blocks_json = json.dumps(productivity_blocks)
-        cache.set(_prod_key, productivity_blocks_json, 600)
+    # Note: open_incidents query has been moved to manager_incidents view
+    # Note: wage_records and productivity_blocks query has been moved to separate views
 
     try:
         market_price_data = get_market_price_for_dashboard()
     except Exception:
         market_price_data = {'success': False, 'price': None, 'status': 'unavailable',
                              'fetched_at': None, 'message': 'Market price service unavailable.'}
+
+    # We just need the count of open incidents to show the badge on the dashboard card
+    open_incidents_count = IncidentReport.objects.filter(
+        block_id__in=my_block_ids, status__in=['OPEN', 'IN_PROGRESS']
+    ).count()
 
     context = {
         'active_assignments': active_assignments,
@@ -275,18 +205,9 @@ def manager_dashboard(request):
         'current_month_name': today.strftime('%B'),
         'current_year': current_year,
         'weather_data': None,
-        'open_incidents': open_incidents,
-        'high_severity_count': high_severity_count,
-        'resolved_this_week': resolved_this_week,
-        'incidents_json': incidents_json,
+        'open_incidents': range(open_incidents_count), # Hack to make {{ open_incidents|length }} work without rewriting the template
         'market_price_data': market_price_data,
-        'wage_records': wage_records,
-        'selected_month_str': first_day_of_selected_month.strftime('%Y-%m'),
-        'total_wage_liability': round(total_wage_liability, 2),
-        'avg_performance': round(avg_performance, 2),
-        'underperforming_count': underperforming_count,
-        'highest_earning': highest_earning,
-        'productivity_blocks_json': productivity_blocks_json,
+        'selected_month_str': first_day_of_selected_month.strftime('%Y-%m')
     }
     return render(request, 'dashboard_manager.html', context)
 
