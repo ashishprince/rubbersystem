@@ -363,446 +363,78 @@
     </div>
 </div>
 
-<!-- Payroll & Performance Monitoring -->
-<div class="row g-4 mt-4 mb-5 fade-in" id="payrollSection">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-wallet2 text-primary-green me-2"></i>Payroll & Performance
-            ({{ selected_month_str }})</h5>
-        <form method="POST" action="{% url 'generate_payroll' %}" class="d-flex gap-2">
-            {% csrf_token %}
-            <input type="month" name="month" class="form-control form-control-sm" value="{{ selected_month_str }}"
-                required>
-            <button type="submit" class="btn btn-sm btn-primary-green d-flex align-items-center gap-1">
-                <i class="bi bi-gear-fill"></i> Generate
-            </button>
-        </form>
+<!-- Manager Module Quick Links -->
+<div class="row g-4 mt-4 mb-5 fade-in">
+    <div class="col-12">
+        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-grid-fill text-primary-green me-2"></i> Plantation Modules
+        </h5>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="col-md-6 col-lg-6">
-        <div class="card h-100 shadow-sm border-0">
-            <div class="card-body p-3">
-                <div class="text-muted small mb-1">Total Wage Liability</div>
-                <h4 class="fw-bold text-dark mb-0" id="total-wage-liability">₹{{ total_wage_liability|floatformat:2 }}
-                </h4>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-6">
-        <div class="card h-100 shadow-sm border-0">
-            <div class="card-body p-3">
-                <div class="text-muted small mb-1">Highest Earner</div>
-                <h4 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 150px;">
-                    {% if highest_earning %}
-                    {{ highest_earning.tapper.get_full_name|default:highest_earning.tapper.username }}
-                    {% else %}
-                    N/A
-                    {% endif %}
-                </h4>
-            </div>
-        </div>
-    </div>
-
-    <!-- Wage Data Table -->
-    <div class="col-lg-7">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex justify-content-between">
-                <h6 class="fw-bold mb-0">Wage Records</h6>
-                <span class="badge bg-light text-dark">{{ wage_records|length }} Records</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="position-sticky top-0 bg-white shadow-sm z-1">
-                            <tr>
-                                <th class="ps-3">Tapper</th>
-                                <th>Att.</th>
-                                <th>Latex</th>
-                                <th>Total Wage</th>
-                                <th class="text-end pe-3">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for record in wage_records %}
-                            <tr>
-                                <td class="ps-3 fw-medium text-dark">
-                                    {{ record.tapper.get_full_name|default:record.tapper.username }}
-                                </td>
-                                <td>{{ record.attendance_days }}d</td>
-                                <td>{{ record.total_latex_kg|floatformat:1 }}L</td>
-                                <td class="fw-bold text-primary-green wage-amount" id="wage-amount-{{ record.id }}">
-                                    ₹{{ record.total_wage|floatformat:2 }}
-                                </td>
-                                <td class="text-end pe-3">
-                                    <button class="btn btn-sm btn-outline-secondary edit-wage-btn shadow-sm"
-                                        data-record-id="{{ record.id }}"
-                                        data-current-wage="{{ record.total_wage|floatformat:2 }}"
-                                        data-tapper-name="{{ record.tapper.get_full_name|default:record.tapper.username }}">
-                                        <i class="bi bi-pencil-square"></i> Edit
-                                    </button>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">No wage records generated. Select a
-                                    month and click Generate.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <!-- Payroll -->
+    <div class="col-md-4">
+        <a href="{% url 'manager_payroll' %}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 module-card hover-lift">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-primary-green bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style="width: 60px; height: 60px;">
+                        <i class="bi bi-wallet2 fs-2 text-primary-green"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Payroll & Wages</h5>
+                    <p class="text-muted small mb-0">Manage tapper wages, calculate {{ selected_month_str }} payouts</p>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- Productivity Map -->
-    <div class="col-lg-5">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-bottom-0 pt-3 pb-2">
-                <h6 class="fw-bold mb-0">Productivity Map</h6>
-            </div>
-            <div class="card-body p-2">
-                <div id="productivityMap" style="height: 400px; width: 100%; border-radius: 8px; z-index: 1;"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Risk Monitoring Map & Table -->
-<div class="row g-4 mt-1 mb-5" id="riskMonitoringSection">
-    <div class="col-lg-12">
-        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-shield-exclamation text-danger me-2"></i>Risk & Incident
-            Monitoring</h5>
-    </div>
-
-    <!-- Map View -->
-    <div class="col-lg-7">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
-                <h6 class="fw-bold mb-0">Active Incident Map</h6>
-            </div>
-            <div class="card-body p-3">
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <div id="managerIncidentMap" style="height: 450px; width: 100%; border-radius: 8px; z-index: 1;"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Table View -->
-    <div class="col-lg-5">
-        <div class="card shadow-sm border-0 h-100">
-            <div
-                class="card-header bg-white border-bottom-0 pt-4 pb-2 d-flex justify-content-between align-items-center">
-                <h6 class="fw-bold mb-0">Open Incidents Queue</h6>
-                <span class="badge bg-danger rounded-pill">{{ open_incidents.count }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="position-sticky top-0 bg-white shadow-sm z-1">
-                            <tr>
-                                <th class="ps-4">Incident Details</th>
-                                <th class="text-end pe-4">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for inc in open_incidents %}
-                            <tr id="incidentRow-{{ inc.id }}">
-                                <td class="ps-4 py-3">
-                                    <div class="d-flex align-items-start gap-3">
-                                        <div class="avatar-circle 
-                                            {% if inc.severity == 'HIGH' %}bg-danger text-white
-                                            {% elif inc.severity == 'MEDIUM' %}bg-warning text-dark
-                                            {% else %}bg-success text-white{% endif %}"
-                                            style="width: 40px; height: 40px;">
-                                            <i class="bi bi-exclamation-triangle-fill"></i>
-                                        </div>
-                                        <div>
-                                            <h6 class="fw-bold mb-1 text-dark">{{ inc.get_incident_type_display }}</h6>
-                                            <div class="text-muted small mb-1">
-                                                <i class="bi bi-geo-alt-fill me-1"></i>
-                                                <span>{{ inc.block.name }}</span> &bull;
-                                                <!-- prettier-ignore -->
-                                                <span>{{ inc.tapper.get_full_name|default:inc.tapper.username }}</span>
-                                            </div>
-                                            <div class="small">{{ inc.description|truncatechars:50 }}</div>
-                                            <div class="text-muted small mt-1" style="font-size: 0.75rem;">
-                                                <!-- prettier-ignore -->
-                                                <span>{{ inc.created_at|date:"M d, Y h:i A" }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <button class="btn btn-sm btn-outline-success fw-bold resolve-btn"
-                                        data-id="{{ inc.id }}">
-                                        <i class="bi bi-check2-all me-1"></i>Resolve
-                                    </button>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="2" class="text-center py-5 text-muted">
-                                    <i class="bi bi-shield-check fs-2 text-success d-block mb-3 opacity-75"></i>
-                                    No open incidents. Field operations are clear!
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <div class="col-md-4">
+        <a href="{% url 'manager_productivity' %}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 module-card hover-lift">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-primary-green bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style="width: 60px; height: 60px;">
+                        <i class="bi bi-map-fill fs-2 text-primary-green"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Productivity Map</h5>
+                    <p class="text-muted small mb-0">Visual performance breakdown across all blocks</p>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
-</div>
 
-<!-- Edit Wage Modal -->
-<div class="modal fade" id="editWageModal" tabindex="-1" aria-labelledby="editWageModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
-            <div class="modal-header text-white" style="background-color: #2E7D32; border-radius: 12px 12px 0 0;">
-                <h5 class="modal-title fw-bold" id="editWageModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit
-                    Wage Record</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div id="editWageAlertContainer"></div>
-                <form id="editWageForm">
-                    <input type="hidden" id="editWageRecordId">
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">Tapper Name</label>
-                        <input type="text" class="form-control bg-light" id="editWageTapperName" readonly>
+    <!-- Incidents -->
+    <div class="col-md-4">
+        <a href="{% url 'manager_incidents' %}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 module-card hover-lift position-relative">
+                {% if open_incidents|length > 0 %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                    style="margin-top: 15px; margin-left: -15px;">
+                    {{ open_incidents|length }}
+                </span>
+                {% endif %}
+                <div class="card-body p-4 text-center">
+                    <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style="width: 60px; height: 60px;">
+                        <i class="bi bi-shield-exclamation fs-2 text-danger"></i>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">Total Wage (₹)</label>
-                        <input type="number" step="0.01" class="form-control fw-bold text-dark fs-5" id="editWageAmount"
-                            required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-0 bg-light rounded-bottom">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary-green px-4 fw-bold" id="saveWageBtn">
-                    Save Changes
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Edit Wage Logic
-        const editWageModalEl = document.getElementById('editWageModal');
-        let editWageModal = null;
-        if (editWageModalEl && typeof bootstrap !== 'undefined') {
-            editWageModal = new bootstrap.Modal(editWageModalEl);
-        }
-
-        document.querySelectorAll('.edit-wage-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const recordId = this.getAttribute('data-record-id');
-                const tapperName = this.getAttribute('data-tapper-name');
-                const currentWage = this.getAttribute('data-current-wage');
-
-                document.getElementById('editWageRecordId').value = recordId;
-                document.getElementById('editWageTapperName').value = tapperName;
-                document.getElementById('editWageAmount').value = currentWage;
-
-                document.getElementById('editWageAlertContainer').innerHTML = '';
-                if (editWageModal) {
-                    editWageModal.show();
-                }
-            });
-        });
-
-        document.getElementById('saveWageBtn')?.addEventListener('click', function () {
-            const btn = this;
-            const recordId = document.getElementById('editWageRecordId').value;
-            const newWage = document.getElementById('editWageAmount').value;
-            const alertContainer = document.getElementById('editWageAlertContainer');
-
-            if (!newWage || newWage < 0) {
-                alertContainer.innerHTML = `<div class="alert alert-danger fade show small shadow-sm"><i class="bi bi-info-circle-fill me-2"></i>Please enter a valid wage amount.</div>`;
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-
-            fetch(`/payroll/edit/${recordId}/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({ new_wage: newWage })
-            })
-                .then(res => res.json().then(data => ({ status: res.status, data: data })))
-                .then(result => {
-                    if (result.status === 200) {
-                        // Update table UI
-                        const wageCell = document.getElementById(`wage-amount-${recordId}`);
-                        if (wageCell) {
-                            wageCell.innerHTML = `₹${parseFloat(result.data.new_wage).toFixed(2)}`;
-                        }
-
-                        // Update the Total Wage Liability card roughly (since we don't recalculate the whole sum here, we can just optionally reload the page or do a rough calculation. For perfection, let's just update the specific row data)
-                        const editBtn = document.querySelector(`.edit-wage-btn[data-record-id="${recordId}"]`);
-                        if (editBtn) {
-                            editBtn.setAttribute('data-current-wage', parseFloat(result.data.new_wage).toFixed(2));
-                        }
-
-                        editWageModal.hide();
-
-                        // Option: reload to update all high-level KPI cards, uncomment if needed
-                        setTimeout(() => { window.location.reload(); }, 300);
-                    } else {
-                        alertContainer.innerHTML = `<div class="alert alert-danger fade show small shadow-sm"><i class="bi bi-info-circle-fill me-2"></i>Error: ${result.data.message || 'Failed to update wage'}</div>`;
-                    }
-                })
-                .catch(err => {
-                    alertContainer.innerHTML = `<div class="alert alert-danger fade show small shadow-sm"><i class="bi bi-info-circle-fill me-2"></i>Network error. Try again.</div>`;
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = 'Save Changes';
-                });
-        });
-
-        // Initialize Map
-        const map = L.map('managerIncidentMap').setView([9.9312, 76.2673], 13);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri',
-            maxZoom: 19
-        }).addTo(map);
-
-        // Load incidents directly from backend JSON dump safely
-        const incidentsString = '{{ incidents_json|escapejs }}';
-        const incidents = incidentsString ? JSON.parse(incidentsString) : [];
-        const markers = [];
-        incidents.forEach(inc => {
-            let markerColor = '#4CAF50'; // Low
-            if (inc.severity === 'HIGH') markerColor = '#D32F2F';
-            else if (inc.severity === 'MEDIUM') markerColor = '#FFA000';
-
-            const customIcon = L.divIcon({
-                className: 'custom-incident-marker',
-                html: `<div style="background-color: ${markerColor}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-
-            const popupContent = `
-                <div style="min-width: 200px;">
-                    <h6 style="margin: 0; padding-bottom: 5px; border-bottom: 1px solid #ccc; font-weight: bold;">
-                        ${inc.type} <span style="font-size: 0.75rem; color: ${markerColor}; margin-left:10px;">• ${inc.severity}</span>
-                    </h6>
-                    <div style="margin-top: 10px; font-size: 13px;">
-                        <strong>Block:</strong> ${inc.block}<br>
-                        <strong>Reported By:</strong> ${inc.tapper}<br>
-                        <strong>Time:</strong> ${inc.date}<br>
-                        <p style="margin-top: 8px; margin-bottom: 0; color: #555;"><i>"${inc.description}"</i></p>
-                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Incident Risk Map</h5>
+                    <p class="text-muted small mb-0">Track and resolve active plantation incidents</p>
                 </div>
-            `;
+            </div>
+        </a>
+    </div>
+</div>
 
-            const marker = L.marker([inc.lat, inc.lng], { icon: customIcon }).bindPopup(popupContent).addTo(map);
-            markers.push(marker);
-        });
+<style>
+    .module-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
 
-        if (markers.length > 0) {
-            const group = new L.featureGroup(markers);
-            map.fitBounds(group.getBounds(), { padding: [40, 40] });
-            setTimeout(() => { map.invalidateSize(); }, 500);
-        } else {
-            setTimeout(() => { map.invalidateSize(); }, 500);
-        }
-
-        // AJAX Resolve Button Logic
-        document.querySelectorAll('.resolve-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const incidentId = this.getAttribute('data-id');
-                const row = document.getElementById(`incidentRow-${incidentId}`);
-                const originalHtml = this.innerHTML;
-
-                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                this.classList.add('disabled');
-
-                fetch(`/api/incidents/resolve/${incidentId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}',
-                        'Content-Type': 'application/json'
-                    }
-                })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            row.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                            row.style.opacity = '0';
-                            row.style.transform = 'translateX(20px)';
-                            setTimeout(() => {
-                                row.remove();
-                                // If we want to refresh map, page reload is easiest for manager
-                                window.location.reload();
-                            }, 500);
-                        } else {
-                            alert("Error: " + data.error);
-                            this.innerHTML = originalHtml;
-                            this.classList.remove('disabled');
-                        }
-                    })
-                    .catch(err => {
-                        alert("Network error.");
-                        this.innerHTML = originalHtml;
-                        this.classList.remove('disabled');
-                    });
-            });
-        });
-
-        // Initialize Productivity Map
-        const prodMap = L.map('productivityMap').setView([9.9312, 76.2673], 13);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri',
-            maxZoom: 19
-        }).addTo(prodMap);
-
-        const blocksStr = '{{ productivity_blocks_json|escapejs }}';
-        const prodBlocks = blocksStr ? JSON.parse(blocksStr) : [];
-        const prodLayerGroup = L.featureGroup().addTo(prodMap);
-
-        prodBlocks.forEach(b => {
-            if (b.boundary) {
-                const layer = L.geoJSON(b.boundary, {
-                    style: {
-                        color: b.color,
-                        weight: 2,
-                        fillColor: b.color,
-                        fillOpacity: 0.5
-                    }
-                }).bindPopup(`
-                    <div style="min-width: 150px; text-align: center;">
-                        <h6 style="font-weight: bold; margin-bottom: 5px;">${b.name}</h6>
-                        <span style="background-color: ${b.color}; color: ${b.color === '#ff9800' ? '#000' : '#fff'}; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem;">${b.label}</span>
-                        <div style="margin-top: 8px; font-size: 0.85rem; color: #555;">Avg Perf: <strong>${b.perf}%</strong></div>
-                    </div>
-                `);
-                prodLayerGroup.addLayer(layer);
-            }
-        });
-
-        if (prodBlocks.length > 0) {
-            prodMap.fitBounds(prodLayerGroup.getBounds(), { padding: [20, 20] });
-            setTimeout(() => { prodMap.invalidateSize(); }, 500);
-        } else {
-            setTimeout(() => { prodMap.invalidateSize(); }, 500);
-        }
-    });
-</script>
+    .hover-lift:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    }
+</style>
 
 <!-- Chart.js for Monthly Latex Production Trend -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

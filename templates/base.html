@@ -47,6 +47,18 @@
 
                 <!-- Manager Only -->
                 {% if user.groups.all.0.name == 'Manager' %}
+                <a href="{% url 'manager_payroll' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'manager_payroll' %}active{% endif %}">
+                    <i class="bi bi-wallet2 text-primary-green"></i> Payroll & Wages
+                </a>
+                <a href="{% url 'manager_productivity' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'manager_productivity' %}active{% endif %}">
+                    <i class="bi bi-map-fill text-primary-green"></i> Productivity Map
+                </a>
+                <a href="{% url 'manager_incidents' %}"
+                    class="list-group-item-sidebar {% if request.resolver_match.url_name == 'manager_incidents' %}active{% endif %}">
+                    <i class="bi bi-shield-exclamation text-danger"></i> Incident Risk Map
+                </a>
                 <a href="{% url 'tapper_assignments' %}"
                     class="list-group-item-sidebar {% if request.resolver_match.url_name == 'tapper_assignments' %}active{% endif %}">
                     <i class="bi bi-diagram-3-fill"></i> Assignments

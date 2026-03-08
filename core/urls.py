@@ -63,4 +63,9 @@ urlpatterns = [
 
     # Weather data API — async, avoids blocking the dashboard page load
     path('api/weather/', views.api_weather, name='api_weather'),
+
+    # Manager module pages (separated from dashboard for performance)
+    path('payroll/', views.manager_payroll, name='manager_payroll'),
+    path('incidents/', views.manager_incidents, name='manager_incidents'),
+    path('productivity/', views.manager_productivity, name='manager_productivity'),
 ]

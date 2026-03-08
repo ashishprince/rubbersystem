@@ -292,6 +292,157 @@ def manager_dashboard(request):
 
 
 # ─────────────────────────────────────────────
+# PAYROLL PAGE
+# ─────────────────────────────────────────────
+
+@login_required
+@role_required('Manager')
+def manager_payroll(request):
+    from django.core.cache import cache
+
+    today = timezone.now().date()
+    current_month = today.month
+    current_year = today.year
+
+    selected_month_str = request.GET.get('month', today.strftime('%Y-%m'))
+    try:
+        selected_month_date = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
+    except ValueError:
+        selected_month_date = datetime.date(current_year, current_month, 1)
+    first_day = datetime.date(selected_month_date.year, selected_month_date.month, 1)
+
+    wage_records = list(
+        WageRecord.objects.filter(
+            month=first_day,
+            tapper__tapper_profile__created_by=request.user
+        ).select_related('tapper')
+    )
+
+    total_wage_liability  = sum(float(w.total_wage) for w in wage_records)
+    perfs = [float(w.performance_percentage) for w in wage_records]
+    avg_performance       = (sum(perfs) / len(perfs)) if perfs else 0.0
+    underperforming_count = sum(1 for p in perfs if p < 80)
+    highest_earning       = max(wage_records, key=lambda w: w.total_wage, default=None)
+
+    return render(request, 'payroll_manager.html', {
+        'wage_records': wage_records,
+        'selected_month_str': first_day.strftime('%Y-%m'),
+        'total_wage_liability': round(total_wage_liability, 2),
+        'avg_performance': round(avg_performance, 2),
+        'underperforming_count': underperforming_count,
+        'highest_earning': highest_earning,
+        'current_month_name': today.strftime('%B'),
+    })
+
+
+# ─────────────────────────────────────────────
+# INCIDENTS PAGE
+# ─────────────────────────────────────────────
+
+@login_required
+@role_required('Manager')
+def manager_incidents(request):
+    today = timezone.now().date()
+    my_blocks = Block.objects.filter(manager=request.user)
+    my_block_ids = [b.id for b in my_blocks]
+
+    open_incidents = list(
+        IncidentReport.objects.filter(
+            block_id__in=my_block_ids, status__in=['OPEN', 'IN_PROGRESS']
+        ).select_related('tapper', 'block')
+    )
+    high_severity_count = sum(1 for i in open_incidents if i.severity == 'HIGH')
+
+    start_of_week = today - datetime.timedelta(days=today.weekday())
+    resolved_this_week = IncidentReport.objects.filter(
+        block_id__in=my_block_ids, status='RESOLVED', resolved_at__gte=start_of_week
+    ).count()
+    total_resolved = IncidentReport.objects.filter(
+        block_id__in=my_block_ids, status='RESOLVED'
+    ).count()
+
+    incidents_json = json.dumps([{
+        'id': inc.id,
+        'type': inc.get_incident_type_display(),
+        'severity': inc.severity,
+        'description': inc.description,
+        'tapper': inc.tapper.get_full_name() or inc.tapper.username,
+        'block': inc.block.name,
+        'lat': inc.location.y,
+        'lng': inc.location.x,
+        'date': inc.created_at.strftime('%b %d, %Y %I:%M %p'),
+    } for inc in open_incidents])
+
+    return render(request, 'incidents_manager.html', {
+        'open_incidents': open_incidents,
+        'high_severity_count': high_severity_count,
+        'resolved_this_week': resolved_this_week,
+        'total_resolved': total_resolved,
+        'incidents_json': incidents_json,
+    })
+
+
+# ─────────────────────────────────────────────
+# PRODUCTIVITY MAP PAGE
+# ─────────────────────────────────────────────
+
+@login_required
+@role_required('Manager')
+def manager_productivity(request):
+    from django.core.cache import cache
+    from core.services.payroll_service import get_performance_color, get_performance_label
+
+    today = timezone.now().date()
+    current_month = today.month
+    current_year = today.year
+    first_day = datetime.date(current_year, current_month, 1)
+
+    my_blocks = list(Block.objects.filter(manager=request.user))
+    my_block_ids = [b.id for b in my_blocks]
+
+    _prod_key = f'mgr_prod_{request.user.id}'
+    productivity_blocks_json = cache.get(_prod_key)
+    if not productivity_blocks_json:
+        wage_records = list(
+            WageRecord.objects.filter(
+                month=first_day,
+                tapper__tapper_profile__created_by=request.user
+            ).values_list('tapper_id', 'performance_percentage')
+        )
+        wage_by_tapper = dict(wage_records)
+
+        active_tapper_users = User.objects.filter(
+            tapper_profile__assignments__block_id__in=my_block_ids,
+            tapper_profile__assignments__is_active=True,
+        ).values_list('id', 'tapper_profile__assignments__block_id')
+        block_to_user_ids = {}
+        for user_id, block_id in active_tapper_users:
+            block_to_user_ids.setdefault(block_id, []).append(user_id)
+
+        productivity_blocks = []
+        for block in my_blocks:
+            user_ids = block_to_user_ids.get(block.id, [])
+            bperfs = [float(wage_by_tapper[uid]) for uid in user_ids if uid in wage_by_tapper]
+            avg_perf = sum(bperfs) / len(bperfs) if bperfs else 0.0
+            color = get_performance_color(avg_perf) if bperfs else '#9e9e9e'
+            label = get_performance_label(avg_perf) if bperfs else 'N/A'
+            if block.boundary:
+                productivity_blocks.append({
+                    'id': block.id, 'name': block.name,
+                    'color': color, 'label': label,
+                    'perf': round(avg_perf, 2),
+                    'boundary': json.loads(block.boundary.geojson)
+                })
+        productivity_blocks_json = json.dumps(productivity_blocks)
+        cache.set(_prod_key, productivity_blocks_json, 600)
+
+    return render(request, 'productivity_manager.html', {
+        'productivity_blocks_json': productivity_blocks_json,
+        'current_month_name': today.strftime('%B %Y'),
+    })
+
+
+# ─────────────────────────────────────────────
 # MARKET PRICE - MANUAL FETCH ENDPOINT
 # ─────────────────────────────────────────────
 
