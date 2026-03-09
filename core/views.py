@@ -328,15 +328,13 @@ def manager_productivity(request):
         my_blocks = list(Block.objects.exclude(boundary__isnull=True))
         wage_qs = WageRecord.objects.filter(month=first_day)
     else:
-        my_blocks = list(Block.objects.filter(manager=request.user))
-        wage_qs = WageRecord.objects.filter(
-            month=first_day,
-            tapper__tapper_profile__created_by=request.user
-        )
+        my_blocks = list(Block.objects.filter(manager=request.user).exclude(boundary__isnull=True))
+        wage_qs = WageRecord.objects.filter(month=first_day)
 
     my_block_ids = [b.id for b in my_blocks]
 
     _prod_key = f'mgr_prod_{request.user.id}_{first_day}'
+    cache.delete(_prod_key)  # Force clear for demo visibility
     productivity_blocks_json = cache.get(_prod_key)
     if not productivity_blocks_json:
         wage_records = list(wage_qs.values_list('tapper_id', 'performance_percentage'))
