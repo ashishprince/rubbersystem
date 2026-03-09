@@ -1479,4 +1479,27 @@ def api_weather(request):
 
     return JsonResponse(weather)
 
+def debug_map_blocks(request):
+    """Temporary debug view."""
+    from core.models import Block, WageRecord
+    from django.contrib.auth.models import User
+    
+    data = []
+    blocks = Block.objects.all()
+    for b in blocks:
+        data.append({
+            'name': b.name,
+            'manager': b.manager.username if b.manager else 'None',
+            'has_boundary': bool(b.boundary)
+        })
+        
+    shibu = User.objects.filter(username__icontains='shibu').first()
+    
+    return JsonResponse({
+        'blocks': data,
+        'shibu_found': bool(shibu),
+        'shibu_blocks_with_boundary': Block.objects.filter(manager=shibu).exclude(boundary__isnull=True).count() if shibu else 0,
+        'march_wages': WageRecord.objects.filter(month='2026-03-01').count()
+    })
+
 
