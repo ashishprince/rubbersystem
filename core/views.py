@@ -1485,11 +1485,11 @@ def api_weather(request):
 # (superuser only, remove after demo)
 # ─────────────────────────────────────────────
 
-# @login_required
+@login_required
 def dev_seed_productivity(request):
     """Temporary endpoint — forcefully links WageRecords directly to existing PostGIS Blocks."""
-    # if not request.user.is_superuser:
-    #     return JsonResponse({'error': 'Superuser only'}, status=403)
+    if not request.user.is_superuser:
+        return JsonResponse({'error': 'Superuser only'}, status=403)
 
     import datetime
     import random
