@@ -282,7 +282,7 @@ def manager_incidents(request):
         block_id__in=my_block_ids, status='RESOLVED'
     ).count()
 
-    incidents_json = json.dumps([{
+    incidents_json = [{
         'id': inc.id,
         'type': inc.get_incident_type_display(),
         'severity': inc.severity,
@@ -292,7 +292,7 @@ def manager_incidents(request):
         'lat': inc.location.y,
         'lng': inc.location.x,
         'date': inc.created_at.strftime('%b %d, %Y %I:%M %p'),
-    } for inc in open_incidents])
+    } for inc in open_incidents]
 
     return render(request, 'incidents_manager.html', {
         'open_incidents': open_incidents,
