@@ -342,6 +342,7 @@ def manager_productivity(request):
         wage_records = list(wage_qs.values_list('tapper_id', 'performance_percentage'))
         wage_by_tapper = dict(wage_records)
 
+        # Primary: map tappers to blocks via active assignments
         active_tapper_users = User.objects.filter(
             tapper_profile__assignments__block_id__in=my_block_ids,
             tapper_profile__assignments__is_active=True,
@@ -350,13 +351,33 @@ def manager_productivity(request):
         for user_id, block_id in active_tapper_users:
             block_to_user_ids.setdefault(block_id, []).append(user_id)
 
+        # Fallback: for tappers with WageRecords but no active assignment,
+        # map them to the block they most recently collected from this month
+        if_months_ago_start = first_day
+        unassigned_tapper_ids = [uid for uid in wage_by_tapper if uid not in
+                                  [uid2 for uids in block_to_user_ids.values() for uid2 in uids]]
+        if unassigned_tapper_ids:
+            latex_blocks = (
+                LatexCollection.objects
+                .filter(
+                    tapper__user_id__in=unassigned_tapper_ids,
+                    block_id__in=my_block_ids,
+                    date__gte=if_months_ago_start,
+                )
+                .values_list('tapper__user_id', 'block_id')
+                .distinct()
+            )
+            for user_id, block_id in latex_blocks:
+                block_to_user_ids.setdefault(block_id, [])
+                if user_id not in block_to_user_ids[block_id]:
+                    block_to_user_ids[block_id].append(user_id)
+
         productivity_blocks = []
         for block in my_blocks:
             if not block.boundary:
                 continue
             user_ids = block_to_user_ids.get(block.id, [])
             bperfs = [float(wage_by_tapper[uid]) for uid in user_ids if uid in wage_by_tapper]
-            # If no tapper assigned, show grey; if assigned but no wage for month show grey
             avg_perf = sum(bperfs) / len(bperfs) if bperfs else 0.0
             color = get_performance_color(avg_perf) if bperfs else '#9e9e9e'
             label = get_performance_label(avg_perf) if bperfs else 'No data'
