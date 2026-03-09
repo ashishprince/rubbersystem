@@ -158,7 +158,7 @@ def _scrape_rubber_price():
     for url in urls_to_try:
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx, timeout=15) as response:
+            with urllib.request.urlopen(req, context=ctx, timeout=2) as response:
                 html = response.read().decode('utf-8')
                 soup = BeautifulSoup(html, 'html.parser')
 
