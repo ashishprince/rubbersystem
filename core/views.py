@@ -385,11 +385,10 @@ def manager_productivity(request):
                 'perf': round(avg_perf, 2),
                 'boundary': json.loads(block.boundary.geojson)
             })
-        productivity_blocks_json = json.dumps(productivity_blocks)
-        cache.set(_prod_key, productivity_blocks_json, 600)
+        # cache.set(_prod_key, productivity_blocks, 600)  # cache the list directly (omitted cache.set for now since we force-delete it anyway)
 
     return render(request, 'productivity_manager.html', {
-        'productivity_blocks_json': productivity_blocks_json,
+        'productivity_blocks_json': productivity_blocks,
         'current_month_name': today.strftime('%B %Y'),
     })
 
