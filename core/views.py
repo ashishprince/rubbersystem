@@ -308,28 +308,38 @@ def manager_incidents(request):
 # ─────────────────────────────────────────────
 
 @login_required
-@role_required('Manager')
 def manager_productivity(request):
+    """Block Productivity Map. Manager sees own blocks; Admin sees all blocks."""
     from django.core.cache import cache
     from core.services.payroll_service import get_performance_color, get_performance_label
+
+    role = get_user_role(request.user)
+    if role not in ('Manager', 'Admin'):
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.path)
 
     today = timezone.now().date()
     current_month = today.month
     current_year = today.year
     first_day = datetime.date(current_year, current_month, 1)
 
-    my_blocks = list(Block.objects.filter(manager=request.user))
+    # Admin sees all blocks; Manager sees only their own
+    if role == 'Admin':
+        my_blocks = list(Block.objects.exclude(boundary__isnull=True))
+        wage_qs = WageRecord.objects.filter(month=first_day)
+    else:
+        my_blocks = list(Block.objects.filter(manager=request.user))
+        wage_qs = WageRecord.objects.filter(
+            month=first_day,
+            tapper__tapper_profile__created_by=request.user
+        )
+
     my_block_ids = [b.id for b in my_blocks]
 
-    _prod_key = f'mgr_prod_{request.user.id}'
+    _prod_key = f'mgr_prod_{request.user.id}_{first_day}'
     productivity_blocks_json = cache.get(_prod_key)
     if not productivity_blocks_json:
-        wage_records = list(
-            WageRecord.objects.filter(
-                month=first_day,
-                tapper__tapper_profile__created_by=request.user
-            ).values_list('tapper_id', 'performance_percentage')
-        )
+        wage_records = list(wage_qs.values_list('tapper_id', 'performance_percentage'))
         wage_by_tapper = dict(wage_records)
 
         active_tapper_users = User.objects.filter(
@@ -342,18 +352,20 @@ def manager_productivity(request):
 
         productivity_blocks = []
         for block in my_blocks:
+            if not block.boundary:
+                continue
             user_ids = block_to_user_ids.get(block.id, [])
             bperfs = [float(wage_by_tapper[uid]) for uid in user_ids if uid in wage_by_tapper]
+            # If no tapper assigned, show grey; if assigned but no wage for month show grey
             avg_perf = sum(bperfs) / len(bperfs) if bperfs else 0.0
             color = get_performance_color(avg_perf) if bperfs else '#9e9e9e'
-            label = get_performance_label(avg_perf) if bperfs else 'N/A'
-            if block.boundary:
-                productivity_blocks.append({
-                    'id': block.id, 'name': block.name,
-                    'color': color, 'label': label,
-                    'perf': round(avg_perf, 2),
-                    'boundary': json.loads(block.boundary.geojson)
-                })
+            label = get_performance_label(avg_perf) if bperfs else 'No data'
+            productivity_blocks.append({
+                'id': block.id, 'name': block.name,
+                'color': color, 'label': label,
+                'perf': round(avg_perf, 2),
+                'boundary': json.loads(block.boundary.geojson)
+            })
         productivity_blocks_json = json.dumps(productivity_blocks)
         cache.set(_prod_key, productivity_blocks_json, 600)
 
@@ -1460,6 +1472,7 @@ def dev_seed_productivity(request):
 
     import datetime
     import random
+    from django.core.cache import cache
 
     today = timezone.now().date()
     first_of_month = today.replace(day=1)
@@ -1481,9 +1494,8 @@ def dev_seed_productivity(request):
 
     for i, tapper in enumerate(tappers):
         perf = performance_levels[i % len(performance_levels)]
-        # Realistic values based on performance
         attendance_days = random.randint(18, 26)
-        expected_yield = round(attendance_days * 7.5, 1)  # 7.5L per day target
+        expected_yield = round(attendance_days * 7.5, 1)
         total_latex = round(expected_yield * (perf / 100) * random.uniform(0.95, 1.05), 1)
 
         daily_rate = 500.0
@@ -1512,7 +1524,10 @@ def dev_seed_productivity(request):
         else:
             skipped += 1
 
+    # Clear productivity blocks cache for ALL users so maps re-render
+    cache.delete_many([f'mgr_prod_{u.id}_{first_of_month}' for u in User.objects.all()])
+
     return JsonResponse({
         'success': True,
-        'message': f'Seeded {created} WageRecords for {today.strftime("%B %Y")}, skipped {skipped} existing. Refresh the Productivity Map!',
+        'message': f'Seeded {created} WageRecords for {today.strftime("%B %Y")}, skipped {skipped} existing. Visit /productivity/ to see the map.',
     })
