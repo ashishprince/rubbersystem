@@ -385,11 +385,38 @@ def manager_productivity(request):
                 'perf': round(avg_perf, 2),
                 'boundary': json.loads(block.boundary.geojson)
             })
-        # cache.set(_prod_key, productivity_blocks, 600)  # cache the list directly (omitted cache.set for now since we force-delete it anyway)
+        # cache.set(_prod_key, productivity_blocks, 600)  # cache the list directly
+
+    # ── Block-wise production table ──
+    # Aggregate total latex collected per block for the current month
+    block_production = (
+        Block.objects
+        .filter(id__in=my_block_ids)
+        .annotate(
+            monthly_total=models.Sum(
+                'collections__quantity',
+                filter=models.Q(
+                    collections__date__month=current_month,
+                    collections__date__year=current_year
+                )
+            ),
+            today_total=models.Sum(
+                'collections__quantity',
+                filter=models.Q(collections__date=today)
+            ),
+        )
+        .order_by('-monthly_total')
+    )
+
+    total_monthly_production = round(
+        sum(b.monthly_total or 0 for b in block_production), 1
+    )
 
     return render(request, 'productivity_manager.html', {
         'productivity_blocks_json': productivity_blocks,
         'current_month_name': today.strftime('%B %Y'),
+        'block_production': block_production,
+        'total_monthly_production': total_monthly_production,
     })
 
 
