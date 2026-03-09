@@ -69,4 +69,5 @@ urlpatterns = [
     path('incidents/', views.manager_incidents, name='manager_incidents'),
     path('productivity/', views.manager_productivity, name='manager_productivity'),
     path('dev/debug/', views.debug_map_blocks),
+    path('dev/seed-productivity/', views.dev_seed_productivity),
 ]

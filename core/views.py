@@ -1479,6 +1479,89 @@ def api_weather(request):
 
     return JsonResponse(weather)
 
+
+# ─────────────────────────────────────────────
+# TEMP DEV: SEED DEMO PRODUCTIVITY MAP DATA
+# (superuser only, remove after demo)
+# ─────────────────────────────────────────────
+
+@login_required
+def dev_seed_productivity(request):
+    """Temporary endpoint — forcefully links WageRecords directly to existing PostGIS Blocks."""
+    if not request.user.is_superuser:
+        return JsonResponse({'error': 'Superuser only'}, status=403)
+
+    import datetime
+    import random
+    from django.core.cache import cache
+    from core.models import Block, TapperProfile, WageRecord, LatexCollection, User
+
+    today = timezone.now().date()
+    first_of_month = today.replace(day=1)
+
+    # 1. Get ALL blocks that have boundaries (so they can actually render on the map)
+    blocks_with_boundaries = list(Block.objects.exclude(boundary__isnull=True))
+    if not blocks_with_boundaries:
+        return JsonResponse({'error': 'No blocks found with boundaries in database.'}, status=400)
+
+    # 2. Get active tappers
+    tappers = list(User.objects.filter(tapper_profile__active=True))
+    if not tappers:
+        return JsonResponse({'error': 'No active tappers found.'}, status=400)
+
+    performance_levels = [95.0, 78.0, 110.0, 62.0, 88.0]
+    created = 0
+
+    # 3. For each block, force a WageRecord onto a tapper and link them via LatexCollection
+    # This guarantees the productivity view's fallback logic connects them perfectly.
+    for i, block in enumerate(blocks_with_boundaries):
+        tapper = tappers[i % len(tappers)]
+        perf = performance_levels[i % len(performance_levels)]
+        
+        attendance_days = random.randint(18, 26)
+        expected_yield = round(attendance_days * 7.5, 1)
+        total_latex = round(expected_yield * (perf / 100) * random.uniform(0.95, 1.05), 1)
+
+        daily_rate = 500.0
+        per_kg_rate = 12.0
+        base_wage  = round(attendance_days * daily_rate, 2)
+        production_wage = round(total_latex * per_kg_rate, 2)
+        total_wage = round(base_wage + production_wage, 2)
+
+        # Force WageRecord for this month
+        WageRecord.objects.update_or_create(
+            tapper=tapper,
+            month=first_of_month,
+            defaults={
+                'attendance_days': attendance_days,
+                'total_latex_kg': total_latex,
+                'daily_rate': daily_rate,
+                'per_kg_rate': per_kg_rate,
+                'base_wage': base_wage,
+                'production_wage': production_wage,
+                'total_wage': total_wage,
+                'expected_yield': expected_yield,
+                'performance_percentage': perf,
+            }
+        )
+        
+        # Force a LatexCollection today for this specific block to trigger the fallback logic
+        LatexCollection.objects.get_or_create(
+            tapper=tapper,
+            block=block,
+            date=today,
+            defaults={'quantity': round(total_latex / attendance_days, 1)}
+        )
+        created += 1
+
+    # Clear maps cache
+    cache.delete_many([f'mgr_prod_{u.id}_{first_of_month}' for u in User.objects.all()])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Forced mapped {created} blocks to WageRecords. Map should now be full of colors!',
+    })
+
 def debug_map_blocks(request):
     """Temporary debug view."""
     from core.models import Block, WageRecord
