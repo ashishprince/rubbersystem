@@ -90,7 +90,7 @@
         });
 
         function fitMap() {
-            if (blocksData.length > 0) {
+            if (blocksData.length > 0 && blockGroup.getBounds().isValid()) {
                 map.fitBounds(blockGroup.getBounds().pad(0.1));
             } else {
                 map.setView([10.5, 76.5], 8);
