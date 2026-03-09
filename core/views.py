@@ -1445,3 +1445,74 @@ def api_weather(request):
         weather = get_weather_for_coordinates(9.5916, 76.5222)
 
     return JsonResponse(weather)
+
+
+# ─────────────────────────────────────────────
+# TEMP DEV: SEED DEMO PRODUCTION DATA
+# (superuser only, remove after demo)
+# ─────────────────────────────────────────────
+
+@login_required
+def dev_seed_production(request):
+    """Temporary endpoint — seeds 6 months of demo latex production data. Superuser only."""
+    if not request.user.is_superuser:
+        return JsonResponse({'error': 'Superuser only'}, status=403)
+
+    import datetime
+    import random
+    from django.db.models import Sum
+
+    today = timezone.now().date()
+    start = (today.replace(day=1) - datetime.timedelta(days=150)).replace(day=1)
+
+    tappers = list(TapperProfile.objects.filter(active=True))
+    blocks  = list(Block.objects.all())
+
+    if not tappers or not blocks:
+        return JsonResponse({'error': 'No tappers or blocks found. Create them first.'}, status=400)
+
+    tapper = tappers[0]
+    assignment = tapper.assignments.filter(is_active=True).first()
+    block = assignment.block if assignment else blocks[0]
+
+    monthly_targets = [195, 215, 185, 230, 210, 225]
+    created = 0
+    skipped = 0
+    month_index = 0
+    current = start
+
+    while True:
+        if current.year == today.year and current.month == today.month:
+            break
+
+        if current.month == 12:
+            month_end = current.replace(year=current.year + 1, month=1, day=1) - datetime.timedelta(days=1)
+            next_month_start = current.replace(year=current.year + 1, month=1, day=1)
+        else:
+            month_end = current.replace(month=current.month + 1, day=1) - datetime.timedelta(days=1)
+            next_month_start = current.replace(month=current.month + 1, day=1)
+
+        working_days = [
+            datetime.date(current.year, current.month, d)
+            for d in range(current.day, month_end.day + 1)
+            if datetime.date(current.year, current.month, d).weekday() < 6
+        ]
+
+        target_yield = monthly_targets[month_index % 6]
+        per_day = target_yield / max(len(working_days), 1)
+
+        for day in working_days:
+            quantity = round(per_day * random.uniform(0.75, 1.25), 1)
+            if not LatexCollection.objects.filter(tapper=tapper, date=day).exists():
+                LatexCollection.objects.create(date=day, block=block, tapper=tapper, quantity=quantity)
+                created += 1
+            else:
+                skipped += 1
+
+        current = next_month_start
+        month_index += 1
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Seeded {created} records, skipped {skipped}. Tapper: {tapper}, Block: {block}',
+    })
