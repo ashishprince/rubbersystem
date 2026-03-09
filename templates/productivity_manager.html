@@ -54,7 +54,7 @@
             attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
         }).addTo(map);
 
-        const bounds = [];
+        const blockGroup = L.featureGroup().addTo(map);
 
         blocksData.forEach(block => {
             const boundaryStyle = {
@@ -67,7 +67,7 @@
 
             const layer = L.geoJSON(block.boundary, {
                 style: boundaryStyle
-            }).addTo(map);
+            });
 
             layer.bindPopup(`
                 <div class="p-2 text-center">
@@ -86,18 +86,24 @@
                 this.setStyle(boundaryStyle);
             });
 
-            bounds.push(layer.getBounds());
+            blockGroup.addLayer(layer);
         });
 
-        if (bounds.length > 0) {
-            const groupBounds = bounds[0];
-            for (let i = 1; i < bounds.length; i++) {
-                groupBounds.extend(bounds[i]);
+        function fitMap() {
+            if (blocksData.length > 0) {
+                map.fitBounds(blockGroup.getBounds().pad(0.1));
+            } else {
+                map.setView([10.5, 76.5], 8);
             }
-            map.fitBounds(groupBounds.pad(0.1));
-        } else {
-            map.setView([10.5, 76.5], 8);
         }
+
+        fitMap();
+
+        // Fix Leaflet tile loading glitch in bootstrap cards/tabs
+        setTimeout(() => {
+            map.invalidateSize();
+            fitMap();
+        }, 250);
     });
 </script>
 {% endblock %}
