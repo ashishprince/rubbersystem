@@ -1446,3 +1446,73 @@ def api_weather(request):
 
     return JsonResponse(weather)
 
+
+# ─────────────────────────────────────────────
+# TEMP DEV: SEED DEMO PRODUCTIVITY MAP DATA
+# (superuser only, remove after demo)
+# ─────────────────────────────────────────────
+
+@login_required
+def dev_seed_productivity(request):
+    """Temporary endpoint — seeds WageRecord data for productivity map demo. Superuser only."""
+    if not request.user.is_superuser:
+        return JsonResponse({'error': 'Superuser only'}, status=403)
+
+    import datetime
+    import random
+
+    today = timezone.now().date()
+    first_of_month = today.replace(day=1)
+
+    tappers = list(
+        TapperProfile.objects.filter(active=True)
+        .select_related('user')
+        .prefetch_related('assignments')
+    )
+
+    if not tappers:
+        return JsonResponse({'error': 'No active tappers found.'}, status=400)
+
+    # Varied performance levels to make the map colorful
+    performance_levels = [95.0, 78.0, 110.0, 62.0, 88.0, 55.0, 102.0, 73.0]
+
+    created = 0
+    skipped = 0
+
+    for i, tapper in enumerate(tappers):
+        perf = performance_levels[i % len(performance_levels)]
+        # Realistic values based on performance
+        attendance_days = random.randint(18, 26)
+        expected_yield = round(attendance_days * 7.5, 1)  # 7.5L per day target
+        total_latex = round(expected_yield * (perf / 100) * random.uniform(0.95, 1.05), 1)
+
+        daily_rate = 500.0
+        per_kg_rate = 12.0
+        base_wage  = round(attendance_days * daily_rate, 2)
+        production_wage = round(total_latex * per_kg_rate, 2)
+        total_wage = round(base_wage + production_wage, 2)
+
+        obj, was_created = WageRecord.objects.get_or_create(
+            tapper=tapper.user,
+            month=first_of_month,
+            defaults={
+                'attendance_days': attendance_days,
+                'total_latex_kg': total_latex,
+                'daily_rate': daily_rate,
+                'per_kg_rate': per_kg_rate,
+                'base_wage': base_wage,
+                'production_wage': production_wage,
+                'total_wage': total_wage,
+                'expected_yield': expected_yield,
+                'performance_percentage': perf,
+            }
+        )
+        if was_created:
+            created += 1
+        else:
+            skipped += 1
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Seeded {created} WageRecords for {today.strftime("%B %Y")}, skipped {skipped} existing. Refresh the Productivity Map!',
+    })
