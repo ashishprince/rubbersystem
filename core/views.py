@@ -1547,7 +1547,7 @@ def dev_seed_productivity(request):
         
         # Force a LatexCollection today for this specific block to trigger the fallback logic
         LatexCollection.objects.get_or_create(
-            tapper=tapper,
+            tapper=tapper.tapper_profile,
             block=block,
             date=today,
             defaults={'quantity': round(total_latex / attendance_days, 1)}
