@@ -1562,25 +1562,69 @@ def dev_seed_productivity(request):
 
 def debug_map_blocks(request):
     """Temporary debug view."""
-    from core.models import Block, WageRecord
-    from django.contrib.auth.models import User
+    import datetime
+    from django.utils import timezone
+    from core.models import Block, WageRecord, LatexCollection, User
     
-    data = []
-    blocks = Block.objects.all()
-    for b in blocks:
-        data.append({
-            'name': b.name,
-            'manager': b.manager.username if b.manager else 'None',
-            'has_boundary': bool(b.boundary)
-        })
-        
     shibu = User.objects.filter(username__icontains='shibu').first()
+    if not shibu:
+        return JsonResponse({'error': 'shibu not found'})
+        
+    today = timezone.now().date()
+    first_day = datetime.date(today.year, today.month, 1)
     
+    my_blocks = list(Block.objects.filter(manager=shibu).exclude(boundary__isnull=True))
+    my_block_ids = [b.id for b in my_blocks]
+    
+    wage_qs = WageRecord.objects.filter(month=first_day)
+    wage_records = list(wage_qs.values_list('tapper_id', 'performance_percentage'))
+    wage_by_tapper = dict(wage_records)
+    
+    active_tapper_users = User.objects.filter(
+        tapper_profile__assignments__block_id__in=my_block_ids,
+        tapper_profile__assignments__is_active=True,
+    ).values_list('id', 'tapper_profile__assignments__block_id')
+    
+    block_to_user_ids = {}
+    for user_id, block_id in active_tapper_users:
+        block_to_user_ids.setdefault(block_id, []).append(user_id)
+        
+    unassigned_tapper_ids = [uid for uid in wage_by_tapper if uid not in
+                              [uid2 for uids in block_to_user_ids.values() for uid2 in uids]]
+                              
+    latex_blocks = list(
+        LatexCollection.objects
+        .filter(
+            tapper__user_id__in=unassigned_tapper_ids,
+            block_id__in=my_block_ids,
+            date__gte=first_day,
+        )
+        .values_list('tapper__user_id', 'block_id')
+        .distinct()
+    )
+    
+    for user_id, block_id in latex_blocks:
+        block_to_user_ids.setdefault(block_id, [])
+        if user_id not in block_to_user_ids[block_id]:
+            block_to_user_ids[block_id].append(user_id)
+            
+    productivity_blocks = []
+    for block in my_blocks:
+        tappers_in_block = block_to_user_ids.get(block.id, [])
+        productivity_blocks.append({
+            'block_id': block.id,
+            'name': block.name,
+            'tappers_mapped': tappers_in_block
+        })
+
     return JsonResponse({
-        'blocks': data,
-        'shibu_found': bool(shibu),
-        'shibu_blocks_with_boundary': Block.objects.filter(manager=shibu).exclude(boundary__isnull=True).count() if shibu else 0,
-        'march_wages': WageRecord.objects.filter(month='2026-03-01').count()
+        'my_blocks': my_block_ids,
+        'wage_by_tapper': wage_by_tapper,
+        'active_tapper_users': list(active_tapper_users),
+        'unassigned_tapper_ids': unassigned_tapper_ids,
+        'latex_blocks_fallback': latex_blocks,
+        'block_to_user_ids': block_to_user_ids,
+        'final_productivity_blocks': productivity_blocks
     })
 
 
