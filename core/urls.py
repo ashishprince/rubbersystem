@@ -68,7 +68,4 @@ urlpatterns = [
     path('payroll/', views.manager_payroll, name='manager_payroll'),
     path('incidents/', views.manager_incidents, name='manager_incidents'),
     path('productivity/', views.manager_productivity, name='manager_productivity'),
-
-    # TEMP: seed demo productivity map data — superuser only, remove after demo
-    path('dev/seed-productivity/', views.dev_seed_productivity, name='dev_seed_productivity'),
 ]
