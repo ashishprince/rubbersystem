@@ -9,13 +9,22 @@
         <i class="bi bi-wallet2 text-primary-green me-2"></i>
         Payroll & Performance ({{ current_month_name }})
     </h4>
-    <form method="POST" action="{% url 'generate_payroll' %}" class="d-flex gap-2">
+    <form method="POST" action="{% url 'generate_payroll' %}" class="d-flex gap-2" id="payrollForm">
         {% csrf_token %}
-        <input type="month" name="month" class="form-control" value="{{ selected_month_str }}" required>
+        <input type="month" name="month" id="monthSelector" class="form-control" value="{{ selected_month_str }}"
+            required>
         <button type="submit" class="btn btn-primary-green d-flex align-items-center gap-1 shadow-sm">
             <i class="bi bi-gear-fill"></i> Generate
         </button>
     </form>
+</div>
+
+<script>
+    // Automatically reload page when a new month is selected
+    document.getElementById('monthSelector').addEventListener('change', function (e) {
+        window.location.href = `?month=${e.target.value}`;
+    });
+</script>
 </div>
 
 <!-- KPI Cards -->
